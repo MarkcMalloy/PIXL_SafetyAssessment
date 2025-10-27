@@ -22,7 +22,9 @@ class Config:
     DEFAULT_PIXEL_SIZE = 1.0
     NUM_IMAGES = 6  # Expected number of input images to create a depth image
     LIGHT_ANGLES = [0, 60, 120, 180, 240, 300]  # Degrees for light directions
-    Z_TILT = 1.5  # Z-component for light directions
+    Z_TILT = 2  # Z-component for light directions. It is the relative geometric offset between the LED light positions and the camera's optical axis
+    # Each light vector before normalization can be described as v_i = [cos(theta_i),sin(theta_i),z_tilt]. Z-tilt can be described as height of the LED ring / radius of the ring
+    # At Z_TILT = 2, the lights are almost coaxial with the camera
 
     @classmethod
     def output_path(cls, subdir: str) -> Path:

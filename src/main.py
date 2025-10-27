@@ -1,12 +1,20 @@
 import argparse
 from pathlib import Path
 import numpy as np
+import cv2  # <- needed for bilateralFilter
+
 from .config import Config
 from .image_io import load_pngs, save_image, save_float_array
 from .preprocessing import otsu_on_max, quantile_mask, normalize_uint8
-from .photometric_stereo import build_light_dirs, solve_photometric_stereo
+from .photometric_stereo import (
+    build_light_dirs,            # basic ring model
+    build_light_dirs_tilted,     # ring + camera tilt
+    build_light_dirs_point,      # point-light (tilt + optional offset)
+    solve_photometric_stereo,
+)
 from .depth_estimation import normals_to_depth
 from .visualization import save_normals_rgb, save_shadow_maps
+
 
 def main(
         input_glob_or_folder: str = Config.DEFAULT_INPUT_GLOB,
@@ -20,47 +28,68 @@ def main(
         use_otsu: bool = True,
         mask_quantile: float = Config.DEFAULT_MASK_QUANTILE
 ):
-    # Ensure all output directories exist
-    # TODO: Remove ensure_dir in future since it will be redundant. For now it is nice to have this safety feature
-    Config.ensure_dir(output_dir)
-    Config.ensure_dir(albedo_dir)
-    Config.ensure_dir(composite_dir)
-    Config.ensure_dir(depth_dir)
-    Config.ensure_dir(mask_dir)
-    Config.ensure_dir(norm_dir)
-    Config.ensure_dir(shadow_dir)
+    # Ensure output directories exist
+    for d in [output_dir, albedo_dir, composite_dir, depth_dir, mask_dir, norm_dir, shadow_dir]:
+        Config.ensure_dir(d)
+
     print(f"Input glob: {input_glob_or_folder}")
     print(f"Output directory: {output_dir}")
+
     # Load images
     I, files = load_pngs(input_glob_or_folder)
 
-    # Generate mask
+    # Mask
     if use_otsu:
         mask, Imax = otsu_on_max(I)
     else:
         Imax = I.max(axis=-1)
         mask = quantile_mask(I, mask_quantile)
 
-    # Compute light directions
-    L = build_light_dirs()
+    # Per-light gain calibration (same gains used for all L variants)
+    mean_intensity = [I[..., i].mean() for i in range(I.shape[-1])]
+    s = np.array(mean_intensity) / np.mean(mean_intensity)
+    I_cal = I / s[None, None, :]
 
-    # Solve photometric stereo
-    albedo, n = solve_photometric_stereo(I, L, mask)
+    # --- Compute normals for each light model and save for comparison ---
+    variants = {
+        "basic":  build_light_dirs,
+        "tilted": build_light_dirs_tilted,
+        "point":  build_light_dirs_point,
+    }
 
-    # Estimate depth
-    z = normals_to_depth(n, mask)
+    normals_by_variant = {}
+    albedo_by_variant = {}
 
-    # Save outputs
+    for name, builder in variants.items():
+        L = builder()
+        albedo_v, n_v = solve_photometric_stereo(I_cal, L, mask)
+        save_normals_rgb(n_v, str(Path(norm_dir) / f"normals_{name}.png"))
+        normals_by_variant[name] = n_v
+        albedo_by_variant[name] = albedo_v
+
+    # --- Choose one variant (point) to produce the rest of the outputs ---
+    n = normals_by_variant["point"]
+    albedo = albedo_by_variant["point"]
+
+    # Depth (optionally smooth normals first)
+    n_smooth = cv2.bilateralFilter(n.astype(np.float32), d=5, sigmaColor=0.1, sigmaSpace=3)
+    z = normals_to_depth(n_smooth, mask)
+
+    # Save other outputs
     save_image(normalize_uint8(albedo), str(Path(albedo_dir) / "albedo.png"))
-    save_normals_rgb(n, str(Path(norm_dir) / "normals.png"))
     save_image(normalize_uint8(np.nan_to_num(z, nan=0.0)), str(Path(depth_dir) / "depth.png"))
     save_float_array(z, str(Path(depth_dir) / "depth.npy"), format="npy")
     save_float_array(z, str(Path(depth_dir) / "depth.pfm"), format="pfm")
-    save_shadow_maps(n, L, mask, shadow_dir)  # No need for Path here, handled in save_shadow_maps
+
+    # Shadows from the chosen variant
+    L_point = build_light_dirs_point()
+    save_shadow_maps(n, L_point, mask, shadow_dir)
+
+    # Mask & composite
     save_image(mask * 255, str(Path(mask_dir) / "mask.png"))
     save_image(normalize_uint8(Imax), str(Path(composite_dir) / "composite_max.png"))
 
-    # Print summary
+    # Summary
     print("Processed files (first 6):")
     for f in files[:6]:
         print(f" - {f}")
