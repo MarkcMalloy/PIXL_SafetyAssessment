@@ -2,7 +2,7 @@ import numpy as np
 from .config import Config
 
 ### Core logic for computing a photometric stereo image.
-###
+### TODO: Acquire the exact LED positions in mm and the exact position and angle/tilt of the camera to get much more accurate photometric computations
 def build_light_dirs(angles_deg: list = Config.LIGHT_ANGLES, z_tilt: float = Config.Z_TILT) -> np.ndarray:
     """Build light directions for a ring around the camera."""
     angles = np.deg2rad(angles_deg)
