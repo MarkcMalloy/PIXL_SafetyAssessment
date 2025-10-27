@@ -206,7 +206,8 @@ def main(
     save_normals_rgb(n, str(Path(output_dir)/"normals.png"))
     # Depth (two variants: normalized PNG for viz, and float32 EXR for data)
     cv2.imwrite(str(Path(output_dir)/"depth.png"), normalize_uint8(np.nan_to_num(z, nan=0.0)))
-    cv2.imwrite(str(Path(output_dir)/"depth.exr"), np.nan_to_num(z, nan=0.0).astype(np.float32))
+    #cv2.imwrite(str(Path(output_dir)/"depth.exr"), np.nan_to_num(z, nan=0.0).astype(np.float32))
+    cv2.imwrite(str(Path(output_dir) / "depth.pfm"), np.nan_to_num(z, nan=0.0).astype(np.float32))
 
     # Shadow maps
     save_shadow_maps(n, L, mask, str(Path(output_dir)/"Shadows"))
