@@ -3,15 +3,14 @@ import glob
 import cv2
 import numpy as np
 
-def try_load(path_candidates):
-    """Return first successfully loaded .npy from the candidates, else None."""
-    for p in path_candidates:
-        if os.path.isfile(p):
-            try:
-                return np.load(p)
-            except Exception:
-                pass
-    return None
+
+def orient_normals_toward_camera(n):
+    """
+    Ensure normals face the camera (positive z). Flip where z < 0.
+    """
+    flip = n[..., 2] < 0
+    n[flip] = -n[flip]
+    return n
 
 def backproject_unit_rays(K, H, W):
     """Unit ray for each pixel in camera coords."""
@@ -43,7 +42,6 @@ def compute_light_dirs_and_weights(z, rays, led_pos):
 def nearfield_photometric_stereo(imgs, K, led_positions_cam, led_gains, z0):
     imgs = [i.astype(np.float32) for i in imgs]
     H, W = imgs[0].shape
-    N = len(imgs)
     I = np.stack(imgs, axis=-1)                       # HxWxN
 
     rays = backproject_unit_rays(K, H, W)             # HxWx3
@@ -83,41 +81,37 @@ def nearfield_photometric_stereo(imgs, K, led_positions_cam, led_gains, z0):
     return n, rho, mask
 
 
-def save_shadow_maps(n, z0, K, led_positions_cam, out_dir):
+def save_shadow_maps(n, z0, K, led_positions_cam, out_dir, eps=1e-6):
     """
-    Compute per-light shadow maps using n·l <= 0 with the current z0 geometry.
-    Saves HxW 8-bit PNGs to out_dir (Shadow_00.png ...).
+    Save per-light shadow maps where n · Lhat <= eps (not illuminated).
+    Outputs 0=lit, 255=shadow.
     """
     H, W, _ = n.shape
-    # Recreate rays and light directions for current geometry
     rays = backproject_unit_rays(K, H, W)  # HxWx3
     Lhat, _ = compute_light_dirs_and_weights(z0, rays, led_positions_cam)  # HxWxNx3
 
-    # dot(n, Lhat) -> HxWxN
-    # (einsum over last axis of n and last axis of Lhat)
-    ndotl = np.einsum('hwi,hwni->hwn', n, Lhat)
+    ndotl = np.einsum('hwi,hwni->hwn', n, Lhat)  # HxWxN
+    shadows = (ndotl <= eps).astype(np.uint8) * 255
 
-    shadows = (ndotl <= 0.0).astype(np.uint8) * 255  # 0 or 255 per pixel
     os.makedirs(out_dir, exist_ok=True)
     N = shadows.shape[-1]
     for i in range(N):
-        out_path = os.path.join(out_dir, f"Shadow_{i:02d}.png")
-        cv2.imwrite(out_path, shadows[..., i])
+        cv2.imwrite(os.path.join(out_dir, f"Shadow_{i:02d}.png"), shadows[..., i])
+
 
 def main():
     # 1) Load six PNGs (grayscale float32)
-    image_folder = os.path.join('PIXL_Images', 'SOL 1654')
+    image_folder = os.path.join('PIXL_Images', 'TestData')
     image_paths = sorted(glob.glob(os.path.join(image_folder, '*.png')))
     if len(image_paths) < 6:
         raise ValueError(f"Expected at least 6 images, found {len(image_paths)} in {image_folder}")
 
     image_paths = image_paths[:6]
     imgs = [cv2.imread(p, cv2.IMREAD_GRAYSCALE) for p in image_paths]
-    if any(im is None for im in imgs):
-        bad = [p for p, im in zip(image_paths, imgs) if im is None]
-        raise IOError(f"Failed to read some images: {bad}")
+
     imgs = [im.astype(np.float32) / 255.0 for im in imgs]
     H, W = imgs[0].shape
+    print(f"Resolution of images are {H}x{W}")
     N = len(imgs)  # should be 6
 
     # 2) Camera intrinsics K (try load, else reasonable placeholder)
@@ -139,18 +133,23 @@ def main():
     else:
         K = K.astype(np.float32)
 
-    # 3) LED positions: ring (radius 0.04 m), centered at camera, z=0.
-    # Order matches images: start at bottom-left, then move clockwise.
-    # Camera coords in this code: x->right, y->down, z->forward.
+    # 3) LED positions: non-uniform (left cluster + right cluster), z = +0.01 m
     r = 0.04  # meters (8 cm diameter => 4 cm radius)
-    start_deg = 225.0  # bottom-left
-    step_deg = -360.0 / N  # clockwise steps
-    thetas = np.deg2rad([start_deg + k * step_deg for k in range(N)])
+    z_led = 0.02  # meters in front of camera origin
+
+    # Angles (degrees) for: [BL, ML, TL, TR, MR, BR] — clockwise from bottom-left
+    # Convention: x = r*cos(theta), y = r*sin(theta), with y pointing down.
+    angles_degrees = [225, 180, 135, 315, 0, 45]
+
+    thetas = np.deg2rad(angles_degrees)
     xs = r * np.cos(thetas)
     ys = r * np.sin(thetas)
-    zs = np.zeros_like(xs)
-    led_positions_cam = np.stack([xs, ys, zs], axis=1).astype(np.float32)  # Nx3
+    zs = np.full_like(xs, z_led, dtype=np.float32)
+    led_positions_cam = np.stack([xs, ys, zs], axis=1).astype(np.float32)  # (6, 3)
 
+    # (Optional) sanity printout so you can verify the mapping
+    print("LED angles (deg) in image order:", angles_degrees)
+    print("LED positions (m):\n", led_positions_cam)
     # 4) LED gains (try load, else ones)
     led_gains = try_load(['led_gains.npy', os.path.join(image_folder, 'led_gains.npy')])
     if led_gains is None:
@@ -172,6 +171,9 @@ def main():
     # 6) Run near-field photometric stereo
     n, rho, mask = nearfield_photometric_stereo(imgs, K, led_positions_cam, led_gains, z0)
 
+    n = orient_normals_toward_camera(n)
+    print("Normals z stats:", float(n[..., 2].min()), float(n[..., 2].mean()), float(n[..., 2].max()))
+    print("LED positions (m):\n", led_positions_cam)
     # 7) Save per-light shadow maps (n·l <= 0) to Output/Shadows
     out_dir = os.path.join('Output', 'Shadows')
     save_shadow_maps(n, z0, K, led_positions_cam, out_dir)
