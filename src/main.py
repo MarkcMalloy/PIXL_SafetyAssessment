@@ -29,7 +29,8 @@ def main(
     Config.ensure_dir(mask_dir)
     Config.ensure_dir(norm_dir)
     Config.ensure_dir(shadow_dir)
-
+    print(f"Input glob: {input_glob_or_folder}")
+    print(f"Output directory: {output_dir}")
     # Load images
     I, files = load_pngs(input_glob_or_folder)
 
