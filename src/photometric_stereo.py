@@ -16,6 +16,7 @@ def solve_photometric_stereo(I: np.ndarray, L: np.ndarray, mask: np.ndarray) -> 
     """Solve for albedo and normals using photometric stereo."""
     H, W, K = I.shape
     if K != L.shape[0] or K != Config.NUM_IMAGES:
+        # If we aren't using 6 images for Depth from Shade, then we wont compute a photometric stereo image
         raise ValueError(f"Expected {Config.NUM_IMAGES} images and lights, got {K} images and {L.shape[0]} lights")
     LT = L.T
     pinv = np.linalg.inv(LT @ L) @ LT

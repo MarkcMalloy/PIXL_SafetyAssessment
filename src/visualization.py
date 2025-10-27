@@ -1,12 +1,9 @@
 import numpy as np
-import cv2
-from .image_io import save_image
-from src.config import Config
 from pathlib import Path
-
+from .image_io import save_image
+from .config import Config
 
 ### The purpose of this script is to handle visualization and data output generation.
-
 def save_normals_rgb(n: np.ndarray, path: str):
     """Map normals to RGB for visualization."""
     nn = (n + 1.0) * 0.5

@@ -1,13 +1,12 @@
 import argparse
 from pathlib import Path
 import numpy as np
-from src.config import Config
-from src.image_io import load_pngs, save_image, save_float_array
-from src.preprocessing import otsu_on_max, quantile_mask, normalize_uint8
-from src.photometric_stereo import build_light_dirs, solve_photometric_stereo
-from src.depth_estimation import normals_to_depth
-from src.visualization import save_normals_rgb, save_shadow_maps
-
+from .config import Config
+from .image_io import load_pngs, save_image, save_float_array
+from .preprocessing import otsu_on_max, quantile_mask, normalize_uint8
+from .photometric_stereo import build_light_dirs, solve_photometric_stereo
+from .depth_estimation import normals_to_depth
+from .visualization import save_normals_rgb, save_shadow_maps
 
 def main(
         input_glob_or_folder: str = Config.DEFAULT_INPUT_GLOB,
@@ -22,6 +21,7 @@ def main(
         mask_quantile: float = Config.DEFAULT_MASK_QUANTILE
 ):
     # Ensure all output directories exist
+    # TODO: Remove ensure_dir in future since it will be redundant. For now it is nice to have this safety feature
     Config.ensure_dir(output_dir)
     Config.ensure_dir(albedo_dir)
     Config.ensure_dir(composite_dir)

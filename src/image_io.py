@@ -25,14 +25,12 @@ def load_pngs(folder_or_glob: str) -> tuple[np.ndarray, list[str]]:
 
 def save_image(img: np.ndarray, path: str, convert_bgr: bool = False):
     """Save image to disk, optionally converting RGB to BGR."""
-    Config.ensure_dir(Path(path).parent)
     if convert_bgr:
         img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
     cv2.imwrite(path, img)
 
 def save_float_array(arr: np.ndarray, path: str, format: str = "npy"):
     """Save float array as .npy or .pfm."""
-    Config.ensure_dir(Path(path).parent)
     if format == "npy":
         np.save(path, np.nan_to_num(arr, nan=0.0).astype(np.float32))
     elif format == "pfm":
