@@ -4,6 +4,12 @@ from pathlib import Path
 class Config:
     DEFAULT_INPUT_GLOB = "../PIXL_Images/TestData/*.png"
     DEFAULT_OUTPUT_DIR = "../Output"
+    OUTPUT_DIR_ALBEDO = "../Output/Albedo"
+    OUTPUT_DIR_COMPOSITES = "../Output/Composites"
+    OUTPUT_DIR_DEPTH = "../Output/Depth"
+    OUTPUT_DIR_MASKS = "../Output/Masks"
+    OUTPUT_DIR_NORMALIZATION = "../Output/Normalizations"
+    OUTPUT_DIR_SHADOWS = "../Output/Shadows"
     DEFAULT_MORPH_OPEN_KSIZE = 3
     DEFAULT_MASK_QUANTILE = 0.55
     DEFAULT_PIXEL_SIZE = 1.0
