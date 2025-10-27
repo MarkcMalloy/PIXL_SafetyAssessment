@@ -1,5 +1,8 @@
 import cv2, numpy as np
 from numpy.linalg import pinv
+import glob
+import os
+
 
 # --- Inputs you provide ---
 # imgs: list of N grayscale float images (ambient-subtracted, same exposure), shape HxW each
@@ -76,3 +79,22 @@ def nearfield_photometric_stereo(imgs, K, led_positions_cam, led_gains, z0):
     mask = (rho > np.percentile(rho, 5)) & (n[...,2] > 0.15)
 
     return n, rho, mask
+
+
+def main():
+    # Define the relative path
+    image_folder = os.path.join('PIXL_Images', 'SOL 1654')
+
+    # Find all PNG images in the folder
+    image_paths = sorted(glob.glob(os.path.join(image_folder, '*.png')))
+
+    # Ensure we only load 6 images
+    if len(image_paths) < 6:
+        raise ValueError(f"Expected at least 6 images, found {len(image_paths)}")
+    images = [cv2.imread(path, cv2.IMREAD_COLOR) for path in image_paths[:6]]
+
+    # Call your function (modify arguments if needed)
+    near_field_photometric_stereo(images)
+
+if __name__ == "__main__":
+    main()
