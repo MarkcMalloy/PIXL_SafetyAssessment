@@ -15,7 +15,7 @@ class Config:
     OUTPUT_DIR_MASKS = str(PROJECT_ROOT / "Output" / "Masks")
     OUTPUT_DIR_NORMALIZATION = str(PROJECT_ROOT / "Output" / "Normalizations")
     OUTPUT_DIR_SHADOWS = str(PROJECT_ROOT / "Output" / "Shadows")
-
+    OUTPUT_DIR_MESH = str(PROJECT_ROOT / "Output" / "Mesh")
     # --- Photometric parameters ---
     DEFAULT_MORPH_OPEN_KSIZE = 3
     DEFAULT_MASK_QUANTILE = 0.55

@@ -4,3 +4,4 @@ from .preprocessing import otsu_on_max, quantile_mask, normalize_uint8
 from .depth_estimation import normals_to_depth
 from .visualization import save_normals_rgb, save_shadow_maps
 from .image_io import load_pngs, save_image, save_float_array
+from .normals_to_mesh import depth_to_mesh
