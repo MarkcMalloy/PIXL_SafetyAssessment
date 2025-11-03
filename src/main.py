@@ -14,7 +14,7 @@ from .photometric_stereo import (
     solve_photometric_stereo_uniform_albedo,
 )
 from .depth_estimation import normals_to_depth
-from .visualization import save_normals_rgb, save_shadow_maps
+from .visualization import save_normals_rgb, save_shadow_maps, save_depth_plot
 
 
 def main(
@@ -83,6 +83,7 @@ def main(
     save_image(normalize_uint8(np.nan_to_num(z, nan=0.0)), str(Path(depth_dir) / "depth.png"))
     save_float_array(z, str(Path(depth_dir) / "depth.npy"), format="npy")
     save_float_array(z, str(Path(depth_dir) / "depth.pfm"), format="pfm")
+    save_depth_plot(z, mask, str(Path(depth_dir) / "depth_3d.png"))
 
     # Shadows from the chosen variant
     L_point = build_light_dirs_point()
