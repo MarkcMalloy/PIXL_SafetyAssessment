@@ -1,6 +1,8 @@
 import argparse
 from pathlib import Path
 import numpy as np
+import matplotlib.pyplot as plt
+import cv2  # <- needed for bilateralFilter
 import cv2  # needed for bilateralFilter
 
 from .config import Config
@@ -23,6 +25,7 @@ def main(
         albedo_dir: str = Config.OUTPUT_DIR_ALBEDO,
         composite_dir: str = Config.OUTPUT_DIR_COMPOSITES,
         depth_dir: str = Config.OUTPUT_DIR_DEPTH,
+        light_dir: str = Config.OUTPUT_DIR_LIGHT_DIRS,
         mask_dir: str = Config.OUTPUT_DIR_MASKS,
         norm_dir: str = Config.OUTPUT_DIR_NORMALIZATION,
         shadow_dir: str = Config.OUTPUT_DIR_SHADOWS,
@@ -104,6 +107,9 @@ def main(
 
     # Shadows from point lights
     L_point = build_light_dirs_point()
+    save_float_array(L_point, str(Path(light_dir) / "light_directions.npy"), format="npy")
+    plt.imshow(L_point)
+    plt.show()
     save_shadow_maps(n, L_point, mask, shadow_dir)
 
     # Albedo, composite, mask
@@ -125,6 +131,7 @@ if __name__ == "__main__":
     parser.add_argument("--albedo-dir", default=Config.OUTPUT_DIR_ALBEDO, help="Albedo output directory")
     parser.add_argument("--composite-dir", default=Config.OUTPUT_DIR_COMPOSITES, help="Composites output directory")
     parser.add_argument("--depth-dir", default=Config.OUTPUT_DIR_DEPTH, help="Depth output directory")
+    parser.add_argument("--light-dir", default=Config.OUTPUT_DIR_LIGHT_DIRS, help="Light directions output directory")
     parser.add_argument("--mask-dir", default=Config.OUTPUT_DIR_MASKS, help="Masks output directory")
     parser.add_argument("--norm-dir", default=Config.OUTPUT_DIR_NORMALIZATION, help="Normalizations output directory")
     parser.add_argument("--shadow-dir", default=Config.OUTPUT_DIR_SHADOWS, help="Shadows output directory")
@@ -139,6 +146,7 @@ if __name__ == "__main__":
         albedo_dir=args.albedo_dir,
         composite_dir=args.composite_dir,
         depth_dir=args.depth_dir,
+        light_dir=args.light_dir,
         mask_dir=args.mask_dir,
         norm_dir=args.norm_dir,
         shadow_dir=args.shadow_dir,
