@@ -11,6 +11,7 @@ from .photometric_stereo import (
     build_light_dirs_tilted,     # ring + camera tilt
     build_light_dirs_point,      # point-light (tilt + optional offset)
     solve_photometric_stereo,
+    solve_photometric_stereo_uniform_albedo,
 )
 from .depth_estimation import normals_to_depth
 from .visualization import save_normals_rgb, save_shadow_maps
@@ -63,7 +64,9 @@ def main(
     for name, builder in variants.items():
         L = builder()
         albedo_v, n_v = solve_photometric_stereo(I_cal, L, mask)
+        n_uniform_albedo_v = solve_photometric_stereo_uniform_albedo(I_cal, L, mask)
         save_normals_rgb(n_v, str(Path(norm_dir) / f"normals_{name}.png"))
+        save_normals_rgb(n_uniform_albedo_v, str(Path(norm_dir) / f"normals_unifrom_albedo_{name}.png"))
         normals_by_variant[name] = n_v
         albedo_by_variant[name] = albedo_v
 

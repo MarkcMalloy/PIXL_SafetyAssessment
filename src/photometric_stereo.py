@@ -92,3 +92,47 @@ def solve_photometric_stereo(I: np.ndarray, L: np.ndarray, mask: np.ndarray) -> 
     flip = n[..., 2] < 0
     n[flip] = -n[flip]
     return albedo.astype(np.float32), n.astype(np.float32)
+
+def solve_photometric_stereo_uniform_albedo(I: np.ndarray, L: np.ndarray, mask: np.ndarray) -> np.ndarray:
+    """
+    Solve for surface normals assuming uniform albedo.
+    
+    Parameters:
+        I    : np.ndarray, shape (H, W, K)
+               Intensity images under K different lights.
+        L    : np.ndarray, shape (K, 3)
+               Light source directions (unit vectors).
+        mask : np.ndarray, shape (H, W)
+               Boolean mask of valid pixels.
+               
+    Returns:
+        n    : np.ndarray, shape (H, W, 3)
+               Unit surface normals.
+    """
+    H, W, K = I.shape
+    if K != L.shape[0]:
+        raise ValueError(f"Number of images {K} does not match number of lights {L.shape[0]}")
+
+    # Precompute pseudo-inverse of light directions
+    pinv = np.linalg.inv(L.T @ L) @ L.T
+
+    # Reshape images for linear solve
+    I_reshaped = I.reshape(-1, K).T  # shape (K, H*W)
+
+    # Solve for g = albedo * normal (we'll ignore magnitude for uniform albedo)
+    g = (pinv @ I_reshaped).T.reshape(H, W, 3)
+
+    # Normalize to get unit normals
+    n = np.zeros_like(g, dtype=np.float32)
+    mask_nz = np.linalg.norm(g, axis=-1) > 1e-8
+    n[mask_nz] = (g[mask_nz] / np.linalg.norm(g[mask_nz], axis=-1, keepdims=True)).astype(np.float32)
+
+    # Apply mask
+    m = mask.astype(bool)
+    n[~m] = 0.0
+
+    # Ensure normals point forward (z > 0)
+    flip = n[..., 2] < 0
+    n[flip] = -n[flip]
+
+    return n.astype(np.float32)
