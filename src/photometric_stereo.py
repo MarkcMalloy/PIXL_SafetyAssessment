@@ -21,7 +21,7 @@ def build_light_dirs_point(
     r=0.02, h=0.02,
     cam_tilt_deg=(18.0,0.0,0.0),
     cam_offset_rig=(0.0, 0.0, 0.0),
-    z_ref=0.30
+    z_ref=0.10
 ) -> np.ndarray:
     # LED positions in rig frame (N,3)
     led_pos = np.array(

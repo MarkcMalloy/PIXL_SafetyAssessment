@@ -10,7 +10,7 @@ def depth_to_mesh(
     output_dir: str,
     scale: float = 1.0,
     mask_path: str = None,
-    poisson_depth: int = 7
+    poisson_depth: int = 9
 ):
     """
     Convert a depth map (from photometric stereo) into a 3D mesh and save as .ply and .stl.
