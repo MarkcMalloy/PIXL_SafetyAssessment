@@ -13,7 +13,7 @@ def R_from_euler_xyz(pitch_deg=0.0, yaw_deg=0.0, roll_deg=0.0):
 
 """
 The ridge on the rock now shows up more clearly which means the new light geometry is now geometrically consistent with how the real LEDs illuminate the surface. 
-This is because the def effectively compensates for the 18° camera tilt and the slight camera–ring offset (need to get accurate numbers on the offset)
+This is because the def effectively compensates for the 18° camera tilt and the slight camera-ring offset (need to get accurate numbers on the offset)
 the solver is now seeing shading variation from the correct angles instead of interpreting those differences as “fake” surface concavity.
 """
 def build_light_dirs_point(
@@ -46,7 +46,7 @@ def build_light_dirs_point(
 
 def build_light_dirs_tilted(
     angles_deg=[0,60,120,180,240,300],
-    z_tilt=1.5,
+    z_tilt=1.5, #TO-DO! # See if this applies an angle of the LED's light direction towards center or not
     cam_tilt_deg=(18.0, 0.0, 0.0)
 ) -> np.ndarray:
     # lights in rig frame
