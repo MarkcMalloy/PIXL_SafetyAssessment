@@ -87,9 +87,7 @@ def main(
     save_float_array(z, str(Path(depth_dir) / "depth.pfm"), format="pfm")
 
     # Shadows from the chosen variant
-    L_point, led_pos = build_light_dirs_point()
-    plt.plot(led_pos[:,0], led_pos[:,1], 'o')
-    plt.axis('equal')
+    L_point = build_light_dirs_point()
     save_float_array(L_point, str(Path(light_dir) / "light_directions.npy"), format="npy")
     #plt.imshow(L_point)
     #plt.show()
