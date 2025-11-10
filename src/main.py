@@ -76,6 +76,9 @@ def main(
     # Depth (optionally smooth normals first)
     n_smooth = cv2.bilateralFilter(n.astype(np.float32), d=5, sigmaColor=0.1, sigmaSpace=3)
     z = normals_to_depth(n_smooth, mask)
+    # After computing normals
+    avg_nz = np.nanmean(n[mask.astype(bool), 2])
+    print(f"Average nz component: {avg_nz}")
 
     # Save other outputs
     save_image(normalize_uint8(albedo), str(Path(albedo_dir) / "albedo.png"))
@@ -84,10 +87,12 @@ def main(
     save_float_array(z, str(Path(depth_dir) / "depth.pfm"), format="pfm")
 
     # Shadows from the chosen variant
-    L_point = build_light_dirs_point()
+    L_point, led_pos = build_light_dirs_point()
+    plt.plot(led_pos[:,0], led_pos[:,1], 'o')
+    plt.axis('equal')
     save_float_array(L_point, str(Path(light_dir) / "light_directions.npy"), format="npy")
-    plt.imshow(L_point)
-    plt.show()
+    #plt.imshow(L_point)
+    #plt.show()
     save_shadow_maps(n, L_point, mask, shadow_dir)
 
     # Mask & composite

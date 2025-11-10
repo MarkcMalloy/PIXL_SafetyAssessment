@@ -1,5 +1,6 @@
 import numpy as np
 from .config import Config
+import matplotlib.pyplot as plt
 
 ### Core logic for computing a photometric stereo image.
 ### TODO: Acquire the exact LED positions in mm and the exact position and angle/tilt of the camera to get much more accurate photometric computations
@@ -17,17 +18,21 @@ This is because the def effectively compensates for the 18° camera tilt and the
 the solver is now seeing shading variation from the correct angles instead of interpreting those differences as “fake” surface concavity.
 """
 def build_light_dirs_point(
-    angles_deg=[0,60,120,180,240,300],
-    r=0.02, h=0.02,
-    cam_tilt_deg=(18.0,0.0,0.0),
+    #angles_deg=[320,10,60,110,160,205], # Measured angles in degrees, 
+    angles_deg=np.array([205,160,110,60,10,320]),
+    angles_deg_offset=0.0,
+    r=0.04, h=0.001,  # Ring radius and height in meters
+    cam_tilt_deg=(0.0,0.0,18.0),
     cam_offset_rig=(0.0, 0.0, 0.0),
-    z_ref=0.30
+    z_ref=0.0255
 ) -> np.ndarray:
     # LED positions in rig frame (N,3)
+    angles_deg = (angles_deg + angles_deg_offset) % 360
     led_pos = np.array(
         [[r*np.cos(np.deg2rad(a)), r*np.sin(np.deg2rad(a)), h] for a in angles_deg],
         dtype=np.float32
     )  # (N,3)
+    
 
     R = R_from_euler_xyz(*cam_tilt_deg)                          # (3,3) camera<-rig
     t = np.array(cam_offset_rig, dtype=np.float32).reshape(1,3)  # (1,3)
@@ -46,7 +51,7 @@ def build_light_dirs_point(
 
 def build_light_dirs_tilted(
     angles_deg=[0,60,120,180,240,300],
-    z_tilt=1.5, #TO-DO! # See if this applies an angle of the LED's light direction towards center or not
+    z_tilt=Config.Z_TILT, #TO-DO! # See if this applies an angle of the LED's light direction towards center or not
     cam_tilt_deg=(18.0, 0.0, 0.0)
 ) -> np.ndarray:
     # lights in rig frame
