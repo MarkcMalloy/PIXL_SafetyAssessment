@@ -17,32 +17,69 @@ This is because the def effectively compensates for the 18° camera tilt and the
 the solver is now seeing shading variation from the correct angles instead of interpreting those differences as “fake” surface concavity.
 """
 def build_light_dirs_point(
-    angles_deg=[0,60,120,180,240,300],
-    r=0.02, h=0.02,
-    cam_tilt_deg=(18.0,0.0,0.0),
+    angles_deg=[0, 60, 120, 180, 240, 300],
+    r=0.02,
+    h=0.02,
+    cam_tilt_deg=(18.0, 0.0, 0.0),
     cam_offset_rig=(0.0, 0.0, 0.0),
-    z_ref=0.30
+    z_ref=0.30,
+    led_tilt_deg=25.0,   # concave tilt towards the ring center
 ) -> np.ndarray:
-    # LED positions in rig frame (N,3)
+    """
+    Build light directions for a concave LED ring.
+
+    Assumptions:
+    - The LEDs sit on a ring of radius `r` at height `h` in the rig frame.
+    - Each LED is tilted inward by `led_tilt_deg` toward the ring center,
+      forming a cone pointing roughly toward the optical axis.
+    - Rig z-axis points "up"; LED emission is tilted toward negative z
+      (toward the sample).
+    - `cam_tilt_deg` rotates from rig frame to camera frame.
+    """
+
+    # LED positions in rig frame (N, 3)
     led_pos = np.array(
-        [[r*np.cos(np.deg2rad(a)), r*np.sin(np.deg2rad(a)), h] for a in angles_deg],
-        dtype=np.float32
-    )  # (N,3)
+        [[r * np.cos(np.deg2rad(a)), r * np.sin(np.deg2rad(a)), h] for a in angles_deg],
+        dtype=np.float32,
+    )  # (N, 3)
 
-    R = R_from_euler_xyz(*cam_tilt_deg)                          # (3,3) camera<-rig
-    t = np.array(cam_offset_rig, dtype=np.float32).reshape(1,3)  # (1,3)
+    # Camera orientation: camera <- rig
+    R = R_from_euler_xyz(*cam_tilt_deg).astype(np.float32)       # (3, 3)
 
-    # ref point in camera frame -> to rig frame
-    X_cam = np.array([[0.0, 0.0, z_ref]], dtype=np.float32)      # (1,3)
-    X_rig = (X_cam @ R) + t                                      # (1,3)
+    # LED tilt angle in radians
+    theta = np.deg2rad(led_tilt_deg).astype(np.float32)
 
-    # vectors rig: LED - X_rig  ->  camera frame, normalize
-    v_rig = led_pos - X_rig                                      # (N,3)
-    v_cam = (v_rig @ R.T).astype(np.float32)                     # (N,3)
-    norms = np.linalg.norm(v_cam, axis=1, keepdims=True) + 1e-12
-    v_cam /= norms                                               # (N,3) unit
+    # "Down" in rig frame: towards the sample (negative z)
+    z_down = np.array([0.0, 0.0, -1.0], dtype=np.float32)
 
-    return v_cam
+    dirs_rig = []
+
+    for p in led_pos:
+        # Radial direction from center to LED in xy-plane
+        radial = p.copy()
+        radial[2] = 0.0  # project onto xy-plane
+        r_norm = np.linalg.norm(radial) + 1e-12
+        radial /= r_norm
+
+        # Inward toward center
+        inward = -radial  # (3,)
+
+        # LED optical axis in rig frame:
+        #   angle theta away from z_down towards "inward" direction
+        d_rig = np.sin(theta) * inward + np.cos(theta) * z_down
+        dirs_rig.append(d_rig)
+
+    dirs_rig = np.stack(dirs_rig, axis=0)                        # (N, 3)
+
+    # Transform LED directions from rig frame to camera frame
+    # (rotate only; translation doesn't affect directions)
+    dirs_cam = (dirs_rig @ R.T).astype(np.float32)               # (N, 3)
+
+    # Normalize to unit vectors
+    norms = np.linalg.norm(dirs_cam, axis=1, keepdims=True) + 1e-12
+    dirs_cam /= norms
+
+    return dirs_cam
 
 def build_light_dirs_tilted(
     angles_deg=[0,60,120,180,240,300],
