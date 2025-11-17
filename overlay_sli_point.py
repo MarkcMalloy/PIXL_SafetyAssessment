@@ -29,6 +29,7 @@ def overlay_all_points(
     csv_path: str | Path,
     out_path: str | Path,
     cross_half_size: int = 3,
+    center_points: bool = True,
 ):
     """
     Overlay ALL SLI points from the CSV onto the image.
@@ -36,6 +37,9 @@ def overlay_all_points(
     Assumes:
         - CSV columns: u,v,X,Y,Z
         - u,v are fixed-point (Q12): pixel = raw / 4096.
+
+    If center_points is True, the centroid of all SLI points is shifted to
+    the center of the image (like the MATLAB centering behaviour).
     """
     img_path = Path(img_path)
     out_path = Path(out_path)
@@ -62,6 +66,24 @@ def overlay_all_points(
     u_pix = u_raw / 4096.0
     v_pix = v_raw / 4096.0
 
+    # ---- Centering step -------------------------------------------------
+    if center_points and N > 0:
+        # Image center in pixel coordinates
+        cx_img = (W - 1) / 2.0
+        cy_img = (H - 1) / 2.0
+
+        # Centroid of the SLI pattern
+        cx_pts = np.mean(u_pix)
+        cy_pts = np.mean(v_pix)
+
+        dx = cx_img - cx_pts
+        dy = cy_img - cy_pts
+
+        u_pix = u_pix + dx
+        v_pix = v_pix + dy
+
+        print(f"Centering SLI points: shift dx={dx:.2f}, dy={dy:.2f}")
+
     # Draw each point as a small red cross
     for i in range(N):
         col_f = u_pix[i]
@@ -82,12 +104,12 @@ def overlay_all_points(
         for dr in range(-cross_half_size, cross_half_size + 1):
             r = row + dr
             if 0 <= r < H:
-                img_np[r, col] = [255, 0, 0]
+                img_np[r, col] = [0, 255, 0]
 
         for dc in range(-cross_half_size, cross_half_size + 1):
             c = col + dc
             if 0 <= c < W:
-                img_np[row, c] = [255, 0, 0]
+                img_np[row, c] = [0, 255, 0]
 
     # Save overlay
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -98,12 +120,12 @@ def overlay_all_points(
 if __name__ == "__main__":
     # 👉 EDIT THESE PATHS TO YOUR FILES
 
-    # Example: SLI CSV produced from the .unk file
-    csv_path = r"PIXL_Images\CalData\Output\40mm_NoObstacle\A251110_13373123_SLI_points.csv"
+    # Example: SLI CSV produced from the .unc/.sli file
+    csv_path = r"PIXL_Images/CalData/PIXL_040mm_dist/WithObstacle/A251110_13410908_SLI_points.csv"
 
     # Example: PNG produced from the corresponding camera .unc file
-    img_path = r"PIXL_Images/CalData/PIXL_040mm_dist/NoObstacle/40mm_1.png"
+    img_path = r"Output/Normalizations/normals_unifrom_albedo_basic.png"
 
-    out_path = r"PIXL_Images\CalData\Output\40mm_NoObstacle_full\40mm_1_overlay_point0.png"
+    out_path = r"PIXL_Images\CalData\Output\40mm_NoObstacle_full\40mm_1_overlay_point1.png"
 
     overlay_all_points(img_path, csv_path, out_path)
