@@ -16,6 +16,7 @@ The ridge on the rock now shows up more clearly which means the new light geomet
 This is because the def effectively compensates for the 18° camera tilt and the slight camera–ring offset (need to get accurate numbers on the offset)
 the solver is now seeing shading variation from the correct angles instead of interpreting those differences as “fake” surface concavity.
 """
+
 def build_light_dirs_point(
     angles_deg=[0,60,120,180,240,300],
     r=0.02, h=0.02,
@@ -70,6 +71,40 @@ def build_light_dirs(angles_deg: list = Config.LIGHT_ANGLES, z_tilt: float = Con
     z = np.ones((len(angles), 1)) * z_tilt
     L = np.concatenate([xy, z], axis=1).astype(np.float32)
     L /= np.linalg.norm(L, axis=1, keepdims=True) + 1e-12
+    return L
+
+# Williams version
+def build_light_dirs_william(angles_deg, r, d):
+    A = 25.5  # mm, distance from center to LED ring plane
+    theta_deg = 18  # MCC tilt angle
+    theta = np.deg2rad(theta_deg)
+
+    # Convert angles to radians
+    angles = np.deg2rad(angles_deg)
+
+    # Build un-tilted LED positions
+    L = np.array([
+        [r * np.cos(a),
+         r * np.sin(a),
+         -A] for a in angles
+    ])
+
+    # Rotation matrix around X axis
+    Rx = np.array([
+        [1, 0, 0],
+        [0, np.cos(theta), -np.sin(theta)],
+        [0, np.sin(theta),  np.cos(theta)]
+    ])
+
+    # Apply rotation
+    L = (Rx @ L.T).T
+
+    # Shift LEDs to be relative to MCC pinhole at (0,0,0)
+    L += np.array([0, 0, d])
+
+    # Normalize to unit vectors
+    L /= np.linalg.norm(L, axis=1, keepdims=True)
+
     return L
 
 def solve_photometric_stereo(I: np.ndarray, L: np.ndarray, mask: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
