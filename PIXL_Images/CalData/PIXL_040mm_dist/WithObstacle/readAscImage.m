@@ -656,9 +656,10 @@ end
 if strcmp(imageFormat, 'sli') && isfield(im, 'sliData')
 
     % Convert normalized SLI center coords to pixel coordinates
-    u = im.sliData.cen(:,1) * double(header.W);
-    v = im.sliData.cen(:,2) * double(header.H);
-
+    cen = double(im.sliData.cen); % 1e3-scaled normalized centroids for SLI points
+    u = cen(:,1) / 1000 * header.W;   % 0..1 → 0..W-1  (horizontal, OK already)
+    v = cen(:,2) / 1000 * header.H;   % 0..1 → 0..H-1  (vertical, this was wrong)
+    
     % 3D SLI point data
     X = im.sliData.Q(:,1);
     Y = im.sliData.Q(:,2);
