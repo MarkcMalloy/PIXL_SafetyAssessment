@@ -36,7 +36,7 @@ def main(
 
     print(f"Input glob: {input_glob_or_folder}")
     print(f"Output directory: {output_dir}")
-
+    overlay_sli_points()
     # Load images
     I, files = load_pngs(input_glob_or_folder)
 
