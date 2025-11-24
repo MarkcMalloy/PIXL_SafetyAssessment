@@ -16,7 +16,7 @@ from .photometric_stereo import (
 )
 from .depth_estimation import normals_to_depth
 from .visualization import save_normals_rgb, save_shadow_maps, save_depth_plot
-
+from .overlay_sli_point import load_sli_csv, overlay_sli_points
 
 def main(
         input_glob_or_folder: str = Config.DEFAULT_INPUT_GLOB,
