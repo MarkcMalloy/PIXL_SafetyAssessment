@@ -42,7 +42,7 @@ def overlay_all_points(
     csv_path: str | Path,
     out_path: str | Path | None = None,
     pixel_origin: str = "matlab",
-    point_radius: int = 1.4,
+    point_radius: int = 2,
 ):
     """
     Overlay SLI points from CSV onto an image.
@@ -76,6 +76,7 @@ def overlay_all_points(
     # Clamp to image bounds
     u = np.clip(u, 0, W - 1)
     v = np.clip(v, 0, H - 1) +133
+    #v = np.clip(v, 0, H - 1) +133
 
     # Prepare drawing
     overlay = img.copy()

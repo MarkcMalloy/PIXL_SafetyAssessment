@@ -650,37 +650,73 @@ if readMeta
         end
     end
 end
+%u = cen(:,1) / 1000 * header.W;   % 0..1 → 0..W-1  
+%v = cen(:,2) / 1000 * header.H;   % 0..1 → 0..H-1  
+%% Plot SLI data:
+%figure;plot3(im.sliData.Q(:,1), im.sliData.Q(:,2), im.sliData.Q(:,3), '.');
+%figure;plot(im.sliData.cen(:,1),im.sliData.cen(:,2), '.'); axis ij
 
-%% --- Export SLI points to CSV (if available) ------------------------------
-
+% GET X,Y OF CAMERA FRAME FROM SLI:
+% figure; plot(im.sliData.cen(:,1), im.sliData.cen(:,2),'.')
+% axis ij
 if strcmp(imageFormat, 'sli') && isfield(im, 'sliData')
 
-    % Convert normalized SLI center coords to pixel coordinates
-    cen = double(im.sliData.cen); % 1e3-scaled normalized centroids for SLI points
-    u = cen(:,1) / 1000 * header.W;   % 0..1 → 0..W-1  (horizontal, OK already)
-    v = cen(:,2) / 1000 * header.H;   % 0..1 → 0..H-1  (vertical, this was wrong)
-    
-    % 3D SLI point data
-    X = im.sliData.Q(:,1);
-    Y = im.sliData.Q(:,2);
-    Z = im.sliData.Q(:,3);
+    %-------------------------------
+    % Convert SLI centers → pixels
+    %-------------------------------
+    cen = double(im.sliData.cen);  % normalized 0..1 centroids
 
+    W = double(header.W);
+    H = double(header.H);
+
+    u = cen(:,1);      % pixel X
+    v = cen(:,2);      % pixel Y
+
+    %-------------------------------
+    % Depth (µm) from SLI Q array
+    %-------------------------------
+    X = double(im.sliData.Q(:,1));
+    Y = double(im.sliData.Q(:,2));
+    Z = double(im.sliData.Q(:,3));   % depth you want
+
+    %-------------------------------
+    % Create figure identical to:
+    %   figure; plot(cen(:,1), cen(:,2),'.'); axis ij
+    % BUT using pixel coords
+    %-------------------------------
+    figure; 
+    scatter(u, v, 25, 'filled'); 
+    axis ij;
+    xlabel('u (pixel)'); 
+    ylabel('v (pixel)');
+    title('SLI Centers with Depth');
+
+    % Add interactive data cursor: display depth Z
+    dcm = datacursormode(gcf);
+    datacursormode on;
+    set(dcm,'UpdateFcn', @(obj, evt) ...
+        { sprintf('u = %.3f px', evt.Position(1)), ...
+          sprintf('v = %.3f px', evt.Position(2)), ...
+          sprintf('Z = %.3f µm', Z(evt.DataIndex)) });
+
+    %-------------------------------
+    % Save CSV
+    %-------------------------------
     M = [u, v, X, Y, Z];
 
-    % CSV filename matches input file, but with _SLI_points.csv appended
-    [p,name,~] = fileparts(file);
+    [p, name, ~] = fileparts(file);
     csvname = fullfile(p, [name '_SLI_points.csv']);
 
-    % Write header
-    fidCSV = fopen(csvname, 'w');
-    fprintf(fidCSV, 'u,v,X,Y,Z\n');
+    fidCSV = fopen(csvname,'w');
+    fprintf(fidCSV, 'u_px,v_px,X_um,Y_um,Z_um\n');
     fclose(fidCSV);
 
-    % Append data
-    dlmwrite(csvname, M, '-append', 'delimiter', ',', 'precision', 9);
+    dlmwrite(csvname, M, '-append', ...
+        'delimiter', ',', 'precision', 9);
 
     fprintf('Wrote SLI CSV: %s\n', csvname);
 end
+
 
 
 fclose(fid);
