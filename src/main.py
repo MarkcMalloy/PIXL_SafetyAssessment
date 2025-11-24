@@ -10,6 +10,7 @@ from .photometric_stereo import (
     build_light_dirs,            # basic ring model
     build_light_dirs_tilted,     # ring + camera tilt
     build_light_dirs_point,      # point-light (tilt + optional offset)
+    build_light_dirs_point_measured,  # point-light from measured LED positions
     solve_photometric_stereo,
     solve_photometric_stereo_uniform_albedo,
 )
@@ -57,6 +58,7 @@ def main(
         "basic":  build_light_dirs,
         "tilted": build_light_dirs_tilted,
         "point":  build_light_dirs_point,
+        "measured": build_light_dirs_point_measured
     }
 
     normals_by_variant = {}
@@ -71,9 +73,9 @@ def main(
         normals_by_variant[name] = n_v
         albedo_by_variant[name] = albedo_v
 
-    # --- Choose one variant (point) to produce the rest of the outputs ---
-    n = normals_by_variant["point"]
-    albedo = albedo_by_variant["point"]
+    # --- Choose one variant (measured) to produce the rest of the outputs ---
+    n = normals_by_variant["measured"]
+    albedo = albedo_by_variant["measured"]
 
     # Depth (optionally smooth normals first)
     n_smooth = cv2.bilateralFilter(n.astype(np.float32), d=5, sigmaColor=0.1, sigmaSpace=3)
@@ -87,8 +89,8 @@ def main(
     save_depth_plot(z, mask, str(Path(depth_dir) / "depth_3d.png"))
 
     # Shadows from the chosen variant
-    L_point = build_light_dirs_point()
-    save_shadow_maps(n, L_point, mask, shadow_dir)
+    L_measured = build_light_dirs_point_measured()
+    save_shadow_maps(n, L_measured, mask, shadow_dir)
 
     # Mask & composite
     save_image(mask * 255, str(Path(mask_dir) / "mask.png"))
