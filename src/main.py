@@ -15,6 +15,7 @@ from .photometric_stereo import (
 )
 from .depth_estimation import normals_to_depth
 from .visualization import save_normals_rgb, save_shadow_maps, save_depth_plot
+from .overlay_sli_point import load_sli_csv, overlay_sli_points
 
 
 def main(
@@ -32,9 +33,9 @@ def main(
     # Ensure output directories exist
     for d in [output_dir, albedo_dir, composite_dir, depth_dir, mask_dir, norm_dir, shadow_dir]:
         Config.ensure_dir(d)
-
     print(f"Input glob: {input_glob_or_folder}")
     print(f"Output directory: {output_dir}")
+    overlay_sli_points()
 
     # Load images
     I, files = load_pngs(input_glob_or_folder)
