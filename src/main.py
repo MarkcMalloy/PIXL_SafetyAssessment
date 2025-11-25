@@ -2,14 +2,15 @@ import argparse
 from pathlib import Path
 import numpy as np
 import cv2  # <- needed for bilateralFilter
+from scipy.interpolate import Rbf
 
 from .config import Config
 from .image_io import load_pngs, save_image, save_float_array
 from .preprocessing import otsu_on_max, quantile_mask, normalize_uint8
-from .photometric_stereo import (
-    build_light_dirs,            # basic ring model
+from src.photometric_stereo import (
+    # basic ring model
     build_light_dirs_tilted,     # ring + camera tilt
-    build_light_dirs_point,      # point-light (tilt + optional offset)
+    # point-light (tilt + optional offset)
     build_light_dirs_point_measured,  # point-light from measured LED positions
     solve_photometric_stereo,
     solve_photometric_stereo_uniform_albedo,
@@ -17,6 +18,7 @@ from .photometric_stereo import (
 from .depth_estimation import normals_to_depth
 from .visualization import save_normals_rgb, save_shadow_maps, save_depth_plot
 from .overlay_sli_point import load_sli_csv, overlay_sli_points
+
 
 def main(
         input_glob_or_folder: str = Config.DEFAULT_INPUT_GLOB,
@@ -53,11 +55,10 @@ def main(
     I_cal = I / s[None, None, :]
 
     # --- Compute normals for each light model and save for comparison ---
+    # --- Compute normals for each light model and save for comparison ---
     variants = {
-        "basic":  build_light_dirs,
-        "tilted": build_light_dirs_tilted,
-        "point":  build_light_dirs_point,
-        "measured": build_light_dirs_point_measured
+        "tilted":   build_light_dirs_tilted,
+        "measured": build_light_dirs_point_measured,
     }
 
     normals_by_variant = {}
@@ -68,17 +69,80 @@ def main(
         albedo_v, n_v = solve_photometric_stereo(I_cal, L, mask)
         n_uniform_albedo_v = solve_photometric_stereo_uniform_albedo(I_cal, L, mask)
         save_normals_rgb(n_v, str(Path(norm_dir) / f"normals_{name}.png"))
-        save_normals_rgb(n_uniform_albedo_v, str(Path(norm_dir) / f"normals_unifrom_albedo_{name}.png"))
+        save_normals_rgb(
+            n_uniform_albedo_v,
+            str(Path(norm_dir) / f"normals_uniform_albedo_{name}.png"),
+        )
         normals_by_variant[name] = n_v
         albedo_by_variant[name] = albedo_v
 
-    # --- Choose one variant (measured) to produce the rest of the outputs ---
-    n = normals_by_variant["measured"]
-    albedo = albedo_by_variant["measured"]
+    # --- Choose one variant (TILTED) to produce the rest of the outputs ---
+    n = normals_by_variant["tilted"]
+    albedo = albedo_by_variant["tilted"]
 
-    # Depth (optionally smooth normals first)
+    # --- Depth from normals (relative units) ---
     n_smooth = cv2.bilateralFilter(n.astype(np.float32), d=5, sigmaColor=0.1, sigmaSpace=3)
-    z = normals_to_depth(n_smooth, mask)
+    z = normals_to_depth(n_smooth, mask)   # relative depth (arbitrary units)
+
+    # --- Calibrate depth with SLI points (linear fit, SLI in mm) ---
+    # Load SLI CSV using our helper: returns u_px, v_px, Z_sli_raw
+    # Load SLI CSV
+    sli_csv = Path("PIXL_Images/CalData/PIXL_040mm_dist/WithObstacle/A251110_13410908_SLI_points.csv")
+    u_px, v_px, Z_sli_raw = load_sli_csv(sli_csv)
+
+    # Convert SLI depth from micrometers → millimeters
+    Z_sli_mm = Z_sli_raw.astype(np.float32) / 1000.0
+
+    H, W = z.shape
+
+    # Convert MATLAB 1-based → Python 0-based indexing
+    u_idx = np.clip((u_px - 1).astype(int), 0, W - 1)
+    v_idx = np.clip((v_px - 1).astype(int), 0, H - 1)
+
+    # Sample SfS depth at the SLI pixel locations
+    z_sfs_pts = z[v_idx, u_idx]
+
+    # Keep only valid SLI samples
+    valid_pts = np.isfinite(z_sfs_pts) & (mask[v_idx, u_idx] > 0)
+    if np.sum(valid_pts) < 2:
+        print("Warning: Not enough valid SLI ↔ SfS correspondences.")
+        z_cal = z.copy()
+    else:
+        u_valid = u_idx[valid_pts].astype(float)
+        v_valid = v_idx[valid_pts].astype(float)
+        Z_sli_valid = Z_sli_mm[valid_pts]
+        z_sfs_valid = z_sfs_pts[valid_pts]
+
+        # Compute offset at each SLI point: Δ_i = Z_sli_mm_i − z_sfs_i
+        offsets = Z_sli_valid - z_sfs_valid
+
+        # Build smooth 2-D offset field Δ(x, y) using radial basis interpolation
+        print(f"Interpolating dense offset field using {len(offsets)} SLI points…")
+        rbf = Rbf(u_valid, v_valid, offsets, function='multiquadric', smooth=2.0)
+
+        yy, xx = np.mgrid[0:H, 0:W]
+        offset_field = rbf(xx, yy)   # same shape as z
+
+        # Apply dense correction field
+        z_cal = z + offset_field
+
+    # ---------------- Save calibrated depth in mm ----------------
+    save_image(
+        normalize_uint8(np.nan_to_num(z_cal, nan=0.0)),
+        str(Path(depth_dir) / "depth_calibrated.png"),
+    )
+    save_float_array(z_cal, str(Path(depth_dir) / "depth_calibrated.npy"), format="npy")
+    save_float_array(z_cal, str(Path(depth_dir) / "depth_calibrated.pfm"), format="pfm")
+
+    # --- Visualization-only: subtract mean to reveal true 3-D shape ---
+    valid = np.isfinite(z_cal) & (mask > 0)
+    z_cal_vis = z_cal.copy()
+    z_cal_vis[valid] -= np.nanmean(z_cal_vis[valid])
+
+    save_depth_plot(z_cal_vis, mask, str(Path(depth_dir) / "depth_calibrated_3d.png"))
+
+    ###
+
 
     # Save other outputs
     save_image(normalize_uint8(albedo), str(Path(albedo_dir) / "albedo.png"))

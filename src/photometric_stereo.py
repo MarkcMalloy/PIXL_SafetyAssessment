@@ -1,5 +1,5 @@
 import numpy as np
-from .config import Config
+from src.config import Config
 
 
 ### Core logic for computing a photometric stereo image.

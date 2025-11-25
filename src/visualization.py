@@ -49,7 +49,7 @@ def save_depth_plot(z: np.ndarray, mask: np.ndarray, out_path: str):
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
     ax.set_zlabel('Depth')
-    ax.view_init(elev=30, azim=120)
+    ax.view_init(elev=30, azim=300)
 
     # Save figure
     Path(out_path).parent.mkdir(parents=True, exist_ok=True)
