@@ -5,8 +5,8 @@ import pyvista as pv
 
 def main():
     # Paths
-    z_path = Path("../Output/sfs_p.npy")
-    zc_path = Path("../Output/sfs_q.npy")
+    z_path = Path("../Output/sfs_depth.npy")
+    zc_path = Path("../Output/sfs_depth.npy")
 
     print(f"Loading {z_path}")
     print(f"Loading {zc_path}")

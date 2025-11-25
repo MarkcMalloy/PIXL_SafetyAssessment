@@ -1,9 +1,13 @@
 import argparse
 from pathlib import Path
 import numpy as np
+
 from .image_io import load_pngs, save_image, save_float_array
 from .preprocessing import normalize_uint8
-from .sfs_horn import shape_from_shading
+from .sfs_horn import (
+    shape_from_shading_multilight_const_albedo,
+    build_led_dirs_measured,
+)
 from .config import Config
 
 
@@ -27,40 +31,31 @@ def main(
 
     # Convert to float in [0, 1]
     I = I.astype(np.float32)
-    if I.max() > 1.0 + 1e-3:   # likely uint8 0..255
+    if I.max() > 1.0 + 1e-3:
         I /= 255.0
 
-    # ------------------------------------------------------------------ #
-    # 2. Build a single brightness image E(x,y) for SFS
-    #    (Here: simple average over the 6 LED images)
-    # ------------------------------------------------------------------ #
-    E = I.mean(axis=-1)  # shape (H, W)
-
-    # Save the composite used as SFS input (for debugging/visualization)
+    # Save composite for reference (not used directly in SFS now)
+    E = I.mean(axis=-1)
     save_image(
         normalize_uint8(E),
         str(Path(output_dir) / "sfs_input_composite.png"),
     )
 
-    # ------------------------------------------------------------------ #
-    # 3. Shape from shading (Horn-style, rotationally symmetric)
-    # ------------------------------------------------------------------ #
-    # You can tweak these hyperparameters later
-    z, p, q = shape_from_shading(
-        E,
-        rho=1.0,
-        n_iters=200,  # enough iterations
-        step=0.02,  # smaller step for stability
-        lam_smooth=2.0,  # MUCH stronger smoothness
-        verbose=True,  # optional: see loss evolution
+    # Multi-light SFS using all 6 images + measured LED directions
+    L = build_led_dirs_measured()
+
+    z, p, q = shape_from_shading_multilight_const_albedo(
+        I,
+        light_dirs=L,
+        rho=1.0,        # fixed albedo
+        n_iters=150,    # you can tweak
+        step=0.01,
+        lam_smooth=1.5, # tradeoff: larger = smoother
+        verbose=True,
     )
 
-    # ------------------------------------------------------------------ #
-    # 4. Save outputs (all in output_dir)
-    # ------------------------------------------------------------------ #
+    # Save depth
     depth_base = Path(output_dir) / "sfs_depth"
-
-    # Depth (relative units)
     save_image(
         normalize_uint8(np.nan_to_num(z, nan=0.0)),
         str(depth_base.with_suffix(".png")),
@@ -68,7 +63,7 @@ def main(
     save_float_array(z, str(depth_base.with_suffix(".npy")), format="npy")
     save_float_array(z, str(depth_base.with_suffix(".pfm")), format="pfm")
 
-    # Optional: save slope fields p = dz/dx, q = dz/dy
+    # Save slope fields
     save_float_array(p, str(Path(output_dir) / "sfs_p.npy"), format="npy")
     save_float_array(q, str(Path(output_dir) / "sfs_q.npy"), format="npy")
 
