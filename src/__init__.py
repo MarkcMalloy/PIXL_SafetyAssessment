@@ -5,3 +5,4 @@ from .depth_estimation import normals_to_depth, calibrate_depth_with_sli
 from .visualization import save_normals_rgb, save_shadow_maps
 from .image_io import load_pngs, save_image, save_float_array
 from .overlay_sli_point import load_sli_csv, overlay_sli_points
+from .sfs_horn import shape_from_shading
