@@ -1,11 +1,30 @@
+from __future__ import annotations
+
 from pathlib import Path
 import numpy as np
 import pyvista as pv
-from config import Config
-# ---------- small helpers ---------- #
 
-def _make_grid_from_z(z: np.ndarray) -> pv.StructuredGrid:
-    """Build a PyVista StructuredGrid from a Z map."""
+from src.config import Config  # adjust import if needed
+
+
+# ---------- helpers ---------- #
+
+def _make_grid_from_z(z: np.ndarray, pad_above: float = 0.5) -> pv.StructuredGrid:
+    """
+    Build a PyVista StructuredGrid from a Z map.
+
+    pad_above: fraction of the z-range to shift the surface downward so there
+               is more empty space above the terrain in the 3D view.
+    """
+    z = z.copy().astype(np.float32)
+    valid = np.isfinite(z)
+    if valid.any():
+        z_min = float(z[valid].min())
+        z_max = float(z[valid].max())
+        z_range = z_max - z_min
+        # shift down by pad_above * range
+        z[valid] -= pad_above * z_range
+
     H, W = z.shape
     yy, xx = np.mgrid[0:H, 0:W]
 
@@ -16,6 +35,7 @@ def _make_grid_from_z(z: np.ndarray) -> pv.StructuredGrid:
     grid.dimensions = (W, H, 1)
     grid["z"] = z.ravel(order="C")
     return grid
+
 
 
 def _load_depths(base_dir: Path):
@@ -46,11 +66,15 @@ def _load_pq(base_dir: Path):
 
 # ---------- 1) compare relative vs calibrated ---------- #
 
-def compare_relative_calibrated(base_dir: Path, label: str):
+def compare_relative_calibrated(base_dir: Path, label: str, a: float | None = None):
     """
     Compare relative and calibrated depth for one dataset:
       - print basic stats & correlation,
       - show both as separate surfaces.
+
+    If 'a' is provided, we also show an alternative calibrated view with
+    depth divided by -a (undo compression and flip sign) to visually match
+    the relative relief.
     """
     print(f"\n=== [{label}] Compare relative vs calibrated ===")
     z_rel, z_cal = _load_depths(base_dir)
@@ -63,7 +87,7 @@ def compare_relative_calibrated(base_dir: Path, label: str):
     zv = z_rel[mask].astype(np.float32)
     zcv = z_cal[mask].astype(np.float32)
 
-    corr = float(np.corrcoef(zv, zcv)[0, 1])
+    corr = float(np.corrcoef(zv - zv.mean(), zcv - zcv.mean())[0, 1])
     print(f"  z_rel range: {zv.min():.3f} .. {zv.max():.3f}")
     print(f"  z_cal range: {zcv.min():.3f} .. {zcv.max():.3f}")
     print(f"  correlation: {corr:.4f}")
@@ -74,18 +98,30 @@ def compare_relative_calibrated(base_dir: Path, label: str):
     z_rel_vis[mask] -= z_rel_vis[mask].mean()
     z_cal_vis[mask] -= z_cal_vis[mask].mean()
 
-    grid_rel = _make_grid_from_z(z_rel_vis)
-    grid_cal = _make_grid_from_z(z_cal_vis)
+    # Optionally, prepare a second calibrated view with |a|-rescaling
+    if a is not None and abs(a) > 1e-6:
+        z_cal_rescaled = z_cal_vis.copy()
+        # divide by -a: undo compression and flip so bulge is up if a<0
+        z_cal_rescaled[mask] /= -a
+    else:
+        z_cal_rescaled = z_cal_vis
 
-    plotter = pv.Plotter(shape=(1, 2), title=f"{label}: relative vs calibrated")
+    grid_rel = _make_grid_from_z(z_rel_vis)
+    grid_cal = _make_grid_from_z(z_cal_rescaled)
+
+    plotter = pv.Plotter(shape=(1, 2), title=f"{label}: relative vs calibrated",window_size=[1920, 1080])
     plotter.subplot(0, 0)
     plotter.add_mesh(grid_rel, scalars="z", cmap="viridis", show_edges=False)
-    plotter.add_text("Relative depth", font_size=10)
+    plotter.add_text("Relative depth (mean-removed)", font_size=10)
     plotter.show_grid()
 
     plotter.subplot(0, 1)
+    if a is None:
+        txt = "Calibrated depth (mm, mean-removed)"
+    else:
+        txt = f"Calibrated (mean-removed, /-a, a={a:.4f})"
     plotter.add_mesh(grid_cal, scalars="z", cmap="viridis", show_edges=False)
-    plotter.add_text("Calibrated depth (mm, mean-removed)", font_size=10)
+    plotter.add_text(txt, font_size=10)
     plotter.show_grid()
 
     plotter.link_views()
@@ -107,7 +143,7 @@ def compare_p_q(base_dir: Path, label: str):
     grid_p = _make_grid_from_z(p)
     grid_q = _make_grid_from_z(q)
 
-    plotter = pv.Plotter(shape=(1, 2), title=f"{label}: p and q slopes")
+    plotter = pv.Plotter(shape=(1, 2), title=f"{label}: p and q slopes",window_size=[1920, 1080])
     plotter.subplot(0, 0)
     plotter.add_mesh(grid_p, scalars="z", cmap="coolwarm", show_edges=False)
     plotter.add_text("p = dz/dx", font_size=10)
@@ -127,6 +163,7 @@ def compare_p_q(base_dir: Path, label: str):
 def show_sfs_calibrated(
         base_dir: Path,
         label: str,
+        a: float | None = None,
         subtract_mean: bool = True,
         exaggeration: float = 1.0,
 ):
@@ -138,7 +175,12 @@ def show_sfs_calibrated(
     base_dir : Path
         Folder containing sfs_depth_calibrated_mm.npy
     label : str
-        A label for window titles / prints.
+        Label for prints / window titles.
+    a : float or None
+        Calibration slope from main.py ("scale a = ...").
+        - If None: show true calibrated depth in mm (up to global mean).
+        - If set: divide by -a to undo compression and flip sign for
+          visual comparison with the relative map.
     subtract_mean : bool
         If True, subtract mean depth for nicer visualization.
     exaggeration : float
@@ -161,16 +203,25 @@ def show_sfs_calibrated(
     if subtract_mean:
         zc_vis[mask] -= zc_vis[mask].mean()
 
+    # Optional: undo scale & flip for visual comparison
+    if a is not None and abs(a) > 1e-6:
+        zc_vis[mask] /= -a
+
     zc_vis[mask] *= exaggeration
 
     print(
-        f"  zc_vis range after mean/exaggeration: "
+        f"  zc_vis range after scaling: "
         f"{zc_vis[mask].min():.3f} .. {zc_vis[mask].max():.3f}"
     )
 
     grid = _make_grid_from_z(zc_vis)
 
-    plotter = pv.Plotter(title=f"{label}: calibrated SfS (mm)")
+    if a is None:
+        title = f"{label}: calibrated SfS (mm, mean-removed)"
+    else:
+        title = f"{label}: calibrated SfS (mean-removed, /-a, a={a:.4f})"
+
+    plotter = pv.Plotter(title=title,window_size=[1920, 1920])
     plotter.add_mesh(grid, scalars="z", cmap="viridis", show_edges=False)
     plotter.show_grid()
     plotter.show()
@@ -178,11 +229,25 @@ def show_sfs_calibrated(
 
 # ---------- run for both datasets ---------- #
 
-def run_for_dataset(base_dir: Path, label: str):
-    """Run all three viewers for a single dataset."""
+def run_for_dataset(base_dir: Path, label: str, a: float | None = None):
+    """
+    Run all three viewers for a single dataset.
+
+    Parameters
+    ----------
+    base_dir : Path
+        Output folder for this dataset.
+    label : str
+        Label for titles.
+    a : float or None
+        Calibration slope used in main.py for this dataset; copy from:
+          "[LABEL] SfS–SLI calibration: scale a = ..."
+        If None, we won't rescale by 'a' in the plots.
+    """
     compare_p_q(base_dir, label)
-    compare_relative_calibrated(base_dir, label)
-    show_sfs_calibrated(base_dir, label, subtract_mean=True, exaggeration=1.0)
+    compare_relative_calibrated(base_dir, label, a=a)
+    show_sfs_calibrated(base_dir, label, a=a,
+                        subtract_mean=True, exaggeration=1.0)
 
 
 def main():
@@ -193,11 +258,17 @@ def main():
     print(f"NO_OBSTACLE output dir: {base_no_obstacle}")
     print(f"OBSTACLE  output dir: {base_obstacle}")
 
-    # Run for NO_OBSTACLE dataset
-    run_for_dataset(base_no_obstacle, label="NO_OBSTACLE")
+    # === IMPORTANT ===
+    # Put in the calibration slopes 'a' from your console output
+    # for each dataset, or set to None to skip a-based rescaling.
+    a_no_obstacle = 0.179953  # e.g. 0.179953
+    a_obstacle    = 0.236044   # e.g. -0.235702
 
-    # Run for OBSTACLE dataset
-    run_for_dataset(base_obstacle, label="OBSTACLE")
+    # NO_OBSTACLE dataset
+    #run_for_dataset(base_no_obstacle, label="NO_OBSTACLE", a=a_no_obstacle)
+
+    # OBSTACLE dataset
+    run_for_dataset(base_obstacle, label="OBSTACLE", a=a_obstacle)
 
 
 if __name__ == "__main__":
