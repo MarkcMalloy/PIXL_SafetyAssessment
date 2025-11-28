@@ -1,6 +1,6 @@
 import numpy as np
 import cv2
-from .config import Config
+from src.config import Config
 
 ### The purpose of this script is to handle image preprocessing, including normalization and mask generation.
 ###

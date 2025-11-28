@@ -5,12 +5,12 @@ from pathlib import Path
 import numpy as np
 
 from .image_io import load_pngs, save_image, save_float_array
-from .preprocessing import normalize_uint8
-from .sfs_horn import (
+from src.pipeline.preprocessing import normalize_uint8
+from src.pipeline.sfs_horn import (
     shape_from_shading_multilight_const_albedo,
     build_led_dirs_measured,
 )
-from .overlay_sli_point import load_sli_csv
+from src.pipeline.overlay_sli_point import load_sli_csv
 from .config import Config
 
 
@@ -33,8 +33,8 @@ def run_dataset(
     input_glob: str,
     sli_csv_glob: str,
     output_dir: str,
-    n_iters: int = 300,
-    step: float = 0.005,
+    n_iters: int = 150,
+    step: float = 0.01,
     lam_smooth: float = 2.0,
 ):
     """
@@ -91,7 +91,8 @@ def run_dataset(
     z, p, q = shape_from_shading_multilight_const_albedo(
         I,
         light_dirs=L,
-        rho=1.0,        # fixed albedo
+        #rho=0.55,        # fixed albedo
+        rho=1,        # fixed albedo
         n_iters=n_iters,
         step=step,
         lam_smooth=lam_smooth,

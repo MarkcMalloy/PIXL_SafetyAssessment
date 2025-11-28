@@ -7,7 +7,7 @@ from glob import glob
 import numpy as np
 from PIL import Image, ImageDraw
 
-from .config import Config
+from src.config import Config
 
 
 def resolve_single_file(pattern: str, kind: str) -> Path:

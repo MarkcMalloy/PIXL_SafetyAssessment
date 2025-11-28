@@ -261,8 +261,8 @@ def main():
     # === IMPORTANT ===
     # Put in the calibration slopes 'a' from your console output
     # for each dataset, or set to None to skip a-based rescaling.
-    a_no_obstacle = 0.179953  # e.g. 0.179953
-    a_obstacle    = 0.236044   # e.g. -0.235702
+    a_no_obstacle = 0.179953  # e.g. 0.179953 for rho = 1, 0.486064 for rho = 0.55
+    a_obstacle    = 0.5   # e.g. -0.235702 for rho = 1, -0.220645 for rho = 0.55
 
     # NO_OBSTACLE dataset
     #run_for_dataset(base_no_obstacle, label="NO_OBSTACLE", a=a_no_obstacle)

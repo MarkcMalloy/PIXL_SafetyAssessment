@@ -1,5 +1,5 @@
 import numpy as np
-from .config import Config
+from src.config import Config
 ### The purpose of this script is to handle depth estimation from normals.
 
 def frankot_chellappa(p: np.ndarray, q: np.ndarray) -> np.ndarray:
