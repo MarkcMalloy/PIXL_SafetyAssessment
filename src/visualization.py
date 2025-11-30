@@ -21,21 +21,18 @@ def save_shadow_maps(n: np.ndarray, L: np.ndarray, mask: np.ndarray, out_dir: st
         shadow[mask == 0] = 0
         save_image(shadow, str(Path(out_dir) / f"shadow_{i}.png"))
 
-def save_depth_plot(z: np.ndarray, mask: np.ndarray, out_path: str):
+def save_depth_plot(z: np.ndarray, out_path: str):
     """
     Create a 3D surface plot from a depth map and save it as an image.
 
     Parameters:
         z       : np.ndarray, shape (H, W)
                   Depth map.
-        mask    : np.ndarray, shape (H, W)
-                  Boolean mask of valid pixels.
         out_path: str
                   Path to save the output image.
     """
     # Mask out invalid areas
-    z_masked = np.where(mask, z, np.nan)
-    H, W = z_masked.shape
+    H, W = z.shape
     X, Y = np.meshgrid(np.arange(W), np.arange(H))
 
     # Create figure
@@ -43,7 +40,7 @@ def save_depth_plot(z: np.ndarray, mask: np.ndarray, out_path: str):
     ax = fig.add_subplot(111, projection='3d')
 
     # Plot surface
-    ax.plot_surface(X, Y, z_masked, rstride=1, cstride=1, cmap='viridis', edgecolor='none')
+    ax.plot_surface(X, Y, z, rstride=1, cstride=1, cmap='viridis', edgecolor='none')
 
     # Labels and view
     ax.set_xlabel('X')

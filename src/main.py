@@ -3,12 +3,13 @@ from pathlib import Path
 import numpy as np
 
 from .image_io import load_pngs, save_image, save_float_array
-from .preprocessing import normalize_uint8
+from .preprocessing import normalize_uint8, otsu_on_max
 from .sfs_horn import (
     shape_from_shading_multilight_const_albedo,
     build_led_dirs_measured,
 )
 from .config import Config
+from .visualization import save_depth_plot
 
 
 def main(
@@ -60,6 +61,8 @@ def main(
         normalize_uint8(np.nan_to_num(z, nan=0.0)),
         str(depth_base.with_suffix(".png")),
     )
+    save_depth_plot(normalize_uint8(np.nan_to_num(z, nan=0.0)), str("Output/sfs_depth_3d.png"))
+
     save_float_array(z, str(depth_base.with_suffix(".npy")), format="npy")
     save_float_array(z, str(depth_base.with_suffix(".pfm")), format="pfm")
 
