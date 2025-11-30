@@ -5,13 +5,19 @@ from pathlib import Path
 import numpy as np
 
 from .image_io import load_pngs, save_image, save_float_array
+<<<<<<< HEAD
+from .preprocessing import normalize_uint8, otsu_on_max
+from .sfs_horn import (
+=======
 from src.pipeline.preprocessing import normalize_uint8
 from src.pipeline.sfs_horn import (
+>>>>>>> 68a13a2507890b1ea2da484900bc6a71783c37b0
     shape_from_shading_multilight_const_albedo,
     build_led_dirs_measured,
 )
 from src.pipeline.overlay_sli_point import load_sli_csv
 from .config import Config
+from .visualization import save_depth_plot
 
 
 def _pick_first_csv_from_glob(csv_glob: str) -> Path | None:
@@ -167,6 +173,8 @@ def run_dataset(
         normalize_uint8(np.nan_to_num(z, nan=0.0)),
         str(depth_base.with_suffix(".png")),
     )
+    save_depth_plot(normalize_uint8(np.nan_to_num(z, nan=0.0)), str("Output/sfs_depth_3d.png"))
+
     save_float_array(z, str(depth_base.with_suffix(".npy")), format="npy")
     save_float_array(z, str(depth_base.with_suffix(".pfm")), format="pfm")
 
