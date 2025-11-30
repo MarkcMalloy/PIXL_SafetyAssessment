@@ -265,7 +265,7 @@ def main():
     a_obstacle    = 0.5   # e.g. -0.235702 for rho = 1, -0.220645 for rho = 0.55
 
     # NO_OBSTACLE dataset
-    #run_for_dataset(base_no_obstacle, label="NO_OBSTACLE", a=a_no_obstacle)
+    run_for_dataset(base_no_obstacle, label="NO_OBSTACLE", a=a_no_obstacle)
 
     # OBSTACLE dataset
     run_for_dataset(base_obstacle, label="OBSTACLE", a=a_obstacle)
