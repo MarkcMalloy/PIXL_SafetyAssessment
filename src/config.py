@@ -7,14 +7,24 @@ class Config:
 
     # --- Input / Output paths ---
     #DEFAULT_INPUT_GLOB = str(PROJECT_ROOT / "PIXL_Images" / "TestData" / "*.png")
-    DEFAULT_INPUT_GLOB = str(PROJECT_ROOT / "PIXL_Images" / "CalData" / "PIXL_040mm_dist" / "WithObstacle"/ "images"  /"*.png")
-    DEFAULT_SLI_CSV_GLOB = str(PROJECT_ROOT / "PIXL_Images" / "CalData" / "PIXL_040mm_dist" / "WithObstacle"  /"*.csv")
+    DEFAULT_INPUT_GLOB_OBSTACLE = str(PROJECT_ROOT / "PIXL_Images" / "CalData" / "PIXL_040mm_dist" / "WithObstacle"/ "images"  /"*.png")
+    IMG_OBSTACLE = str(PROJECT_ROOT / "Output" / "Depth" / "Obstacle" /"sfs_input_composite.png")
+    DEFAULT_SLI_CSV_GLOB_OBSTACLE = str(PROJECT_ROOT / "PIXL_Images" / "CalData" / "PIXL_040mm_dist" / "WithObstacle"  /"*.csv")
+    SLI_CSV_GLOB_OBSTACLE = str(PROJECT_ROOT / "PIXL_Images" / "CalData" / "PIXL_040mm_dist" / "WithObstacle"  /"A251110_13410908_SLI_points.csv")
+
+    DEFAULT_INPUT_GLOB_NO_OBSTACLE = str(PROJECT_ROOT / "PIXL_Images" / "CalData" / "PIXL_040mm_dist" / "NoObstacle" / "images" / "*.png")
+    IMG_NO_OBSTACLE = str(PROJECT_ROOT / "Output" / "Depth" / "NoObstacle" /"sfs_input_composite.png")
+    DEFAULT_SLI_CSV_GLOB_NO_OBSTACLE = str(PROJECT_ROOT / "PIXL_Images" / "CalData" / "PIXL_040mm_dist" / "NoObstacle" / "*.csv")
+    SLI_CSV_GLOB_NO_OBSTACLE = str(PROJECT_ROOT / "PIXL_Images" / "CalData" / "PIXL_040mm_dist" / "NoObstacle" / "A251110_13373123_SLI_points.csv")
 
     DEFAULT_OUTPUT_DIR = str(PROJECT_ROOT / "Output")
 
     OUTPUT_DIR_ALBEDO = str(PROJECT_ROOT / "Output" / "Albedo")
     OUTPUT_DIR_COMPOSITES = str(PROJECT_ROOT / "Output" / "Composites")
-    OUTPUT_DIR_DEPTH = str(PROJECT_ROOT / "Output" / "Depth")
+
+    OUTPUT_DIR_DEPTH_OBSTACLE = str(PROJECT_ROOT / "Output" / "Depth" / "Obstacle")
+    OUTPUT_DIR_DEPTH_NO_OBSTACLE = str(PROJECT_ROOT / "Output" / "Depth" / "NoObstacle")
+
     OUTPUT_DIR_MASKS = str(PROJECT_ROOT / "Output" / "Masks")
     OUTPUT_DIR_NORMALIZATION = str(PROJECT_ROOT / "Output" / "Normalizations")
     OUTPUT_DIR_SHADOWS = str(PROJECT_ROOT / "Output" / "Shadows")

@@ -7,7 +7,7 @@ from glob import glob
 import numpy as np
 from PIL import Image, ImageDraw
 
-from .config import Config
+from src.config import Config
 
 
 def resolve_single_file(pattern: str, kind: str) -> Path:
@@ -79,8 +79,8 @@ def overlay_sli_points(
 
     Called from src.main.main() with defaults from Config.
     """
-    IMAGE_GLOB = image_glob or Config.DEFAULT_INPUT_GLOB
-    CSV_GLOB = csv_glob or Config.DEFAULT_SLI_CSV_GLOB
+    IMAGE_GLOB = image_glob or Config.DEFAULT_INPUT_GLOB_NO_OBSTACLE
+    CSV_GLOB = csv_glob or Config.DEFAULT_SLI_CSV_GLOB_NO_OBSTACLE
 
     PIXEL_ORIGIN = "matlab"  # options: "matlab" (1-based), "python" (0-based)
     POINT_RADIUS = 4
@@ -159,12 +159,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Overlay SLI points on an image")
     parser.add_argument(
         "--image-glob",
-        default=Config.DEFAULT_INPUT_GLOB,
+        default=Config.DEFAULT_INPUT_GLOB_NO_OBSTACLE,
         help="Glob for input image(s); first match is used",
     )
     parser.add_argument(
         "--csv-glob",
-        default=Config.DEFAULT_SLI_CSV_GLOB,
+        default=Config.DEFAULT_SLI_CSV_GLOB_NO_OBSTACLE,
         help="Glob for SLI CSV file; first match is used",
     )
     args = parser.parse_args()
