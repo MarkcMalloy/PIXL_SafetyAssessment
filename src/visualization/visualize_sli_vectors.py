@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import pyvista as pv
@@ -28,59 +30,98 @@ def load_sli_points(csv_path):
 
     return u_px, v_px, X_mm, Y_mm, Z_mm
 
-def plot_sli_points_pyvista_dual(
+def export_calibrated_sli_csv(
+    csv_path: str,
+    output_name: str,
+    tilt_deg: float = 0.0,
+    calibrateTilt: bool = False,
+):
+    """
+    Load an SLI CSV (u_px, v_px, X_um, Y_um, Z_um),
+    optionally remove a global tilt in Z as a function of Y,
+    and save a calibrated CSV with the same structure in the
+    directory of visualize_sli_vectors.py.
+
+    Tilt correction is done in the *raw camera frame*:
+
+        Z_cal = Z - tan(tilt_deg) * (Y_mm - Y0)
+
+    where Y0 is the mean of Y_mm, so the average depth is preserved.
+    """
+    # Load original CSV
+    df = pd.read_csv(csv_path)
+
+    # Basic sanity: expect these columns
+    required_cols = ["u_px", "v_px", "X_um", "Y_um", "Z_um"]
+    missing = [c for c in required_cols if c not in df.columns]
+    if missing:
+        raise ValueError(f"Missing columns in {csv_path}: {missing}")
+
+    if calibrateTilt and tilt_deg != 0.0:
+        # Convert to mm for the math
+        Y_mm = df["Y_um"].astype(float).to_numpy() / 1000.0
+        Z_mm = df["Z_um"].astype(float).to_numpy() / 1000.0
+
+        theta = np.deg2rad(tilt_deg)
+        m = np.tan(theta)              # dZ/dY slope
+        Y0 = float(np.mean(Y_mm))      # keep mean depth level
+
+        Z_mm_cal = Z_mm - m * (Y_mm - Y0)
+
+        # Back to micrometers for storage
+        df["Z_um"] = Z_mm_cal * 1000.0
+
+    # Figure out where visualize_sli_vectors.py lives
+    script_dir = Path(__file__).resolve().parent
+    out_path = script_dir / output_name
+
+    df.to_csv(out_path, index=False)
+    print(f"Saved calibrated SLI CSV to: {out_path}")
+
+
+def plot_sli_points(
     csv_path,
     img_width_px=752,
     img_height_px=580,
     image_path=None,
     tilt_deg=0.0,         # tilt angle IN DEGREES
-    calibrateTilt=False,  # <---- NEW FLAG
+    calibrateTilt=False,  # apply tilt correction or not
 ):
-    # -------- Load data --------
-    u_px, v_px, X_mm, Y_mm, Z_mm = load_sli_points(csv_path)
+    # -------- Load raw SLI points (camera coordinates) --------
+    u_px, v_px, x_mm, y_mm, z_mm = load_sli_points(csv_path)
 
-    # ---- Apply tilt correction only if calibrateTilt=True ----
+    # -------- Apply tilt correction in RAW CAMERA FRAME --------
     if calibrateTilt and tilt_deg != 0.0:
         theta = np.deg2rad(tilt_deg)
-        m = np.tan(theta)                # dZ/dY slope
-        Y0 = float(np.mean(Y_mm))        # preserve mean Z level
-        Z_mm = Z_mm - m * (Y_mm - Y0)    # tilt correction
+        m = np.tan(theta)          # slope dZ/dY in camera frame
+        Y0 = float(np.mean(y_mm))  # keep mean depth level the same
+        z_mm = z_mm - m * (y_mm - Y0)
 
-    # How much to exaggerate depth in the LEFT (pixel) view
+    # How much to exaggerate depth in the pixel view
     Z_SCALE_LEFT = 5.0
 
     # Flip Z for visualization so closest depth is highest
-    Z_disp = -Z_mm  # used for geometry; Z_mm still used for colouring
+    Z_disp = -z_mm  # used for geometry; Z_mm still used for colouring
 
-    # ---- LEFT VIEW: use scaled Z for display ----
-    z_center_left = float(np.mean(Z_disp))
-    Z_disp_left = (Z_disp - z_center_left) * Z_SCALE_LEFT + z_center_left
+    # ---- Pixel view: use scaled Z for display ----
+    z_center = float(np.mean(Z_disp))
+    Z_disp_left = (Z_disp - z_center) * Z_SCALE_LEFT + z_center
 
-    # Z-limits left/right
-    zmin_left = float(np.min(Z_disp_left) - 1.0)
-    zmax_left = float(np.max(Z_disp_left) + 1.0)
-
-    zmin_right = float(np.min(Z_disp) - 1.0)
-    zmax_right = float(np.max(Z_disp) + 1.0)
+    # Z-limits for the pixel view
+    zmin = float(np.min(Z_disp_left) - 1.0)
+    zmax = float(np.max(Z_disp_left) + 1.0)
 
     # Flip v to match MATLAB's axis ij (origin top-left)
     v_plot = img_height_px - v_px
 
-    # Pixel-frame points (left view)
+    # Pixel-frame points
     pts_px = np.column_stack([u_px, v_plot, Z_disp_left])
     cloud_px = pv.PolyData(pts_px)
-    cloud_px["Z_mm"] = Z_mm          # colour by corrected depths
+    cloud_px["Z_mm"] = z_mm          # colour by (tilt-corrected) depths
 
-    # Camera-frame points (right view)
-    pts_mm = np.column_stack([X_mm, Y_mm, Z_disp])
-    cloud_mm = pv.PolyData(pts_mm)
-    cloud_mm["Z_mm"] = Z_mm
-
-    # ---------- PLANES (at bottom of display Z-range) ----------
-
-    # Left: pixel plane (uses exaggerated Z range)
+    # ---------- Plane and bounds (at bottom of display Z-range) ----------
     plane_px = pv.Plane(
-        center=(img_width_px / 2.0, img_height_px / 2.0, zmin_left),
+        center=(img_width_px / 2.0, img_height_px / 2.0, zmin),
         direction=(0, 0, 1),
         i_size=img_width_px,
         j_size=img_height_px,
@@ -88,21 +129,9 @@ def plot_sli_points_pyvista_dual(
         j_resolution=1,
     )
 
-    # Right: camera ground plane (uses true Z range)
-    size_x = float(np.max(X_mm) - np.min(X_mm))
-    size_y = float(np.max(Y_mm) - np.min(Y_mm))
-    plane_mm = pv.Plane(
-        center=(float(np.mean(X_mm)), float(np.mean(Y_mm)), zmin_right),
-        direction=(0, 0, 1),
-        i_size=size_x,
-        j_size=size_y,
-        i_resolution=10,
-        j_resolution=10,
-    )
-
-    # Invisible cubes to enforce bounds in each subplot
-    z_center_px = 0.5 * (zmin_left + zmax_left)
-    z_length_px = (zmax_left - zmin_left)
+    # Invisible cube to enforce bounds
+    z_center_px = 0.5 * (zmin + zmax)
+    z_length_px = (zmax - zmin)
     bbox_px = pv.Cube(
         center=(img_width_px / 2.0, img_height_px / 2.0, z_center_px),
         x_length=img_width_px,
@@ -110,22 +139,9 @@ def plot_sli_points_pyvista_dual(
         z_length=z_length_px,
     )
 
-    z_center_mm = 0.5 * (zmin_right + zmax_right)
-    z_length_mm = (zmax_right - zmin_right)
-    bbox_mm = pv.Cube(
-        center=(float(np.mean(X_mm)), float(np.mean(Y_mm)), z_center_mm),
-        x_length=size_x,
-        y_length=size_y,
-        z_length=z_length_mm,
-    )
+    # -------- Set up single-view plotter --------
+    plotter = pv.Plotter(window_size=(1920, 1080))
 
-    # -------- Set up plotter with 2 subplots --------
-    plotter = pv.Plotter(shape=(1, 2), window_size=(1920, 1080))
-
-    # ============================================================
-    # LEFT VIEW: Pixel frame (u_px, v_px, Z_disp_left) + image
-    # ============================================================
-    plotter.subplot(0, 0)
     plotter.add_axes(line_width=2)
     plotter.show_grid(
         xtitle="u_px",
@@ -157,7 +173,7 @@ def plot_sli_points_pyvista_dual(
     plotter.add_mesh(
         cloud_px,
         render_points_as_spheres=True,
-        point_size=15,
+        point_size=7,
         scalars="Z_mm",          # colour by tilt-corrected depth
         cmap="viridis",
         scalar_bar_args={"title": "Depth Z (mm)"},
@@ -165,7 +181,7 @@ def plot_sli_points_pyvista_dual(
 
     # Camera above looking down
     center_px = (img_width_px / 2.0, img_height_px / 2.0, z_center_px)
-    cam_height_px = zmax_left + (zmax_left - zmin_left)
+    cam_height_px = zmax + (zmax - zmin)
     plotter.camera_position = [
         (center_px[0], center_px[1], cam_height_px),
         center_px,
@@ -173,73 +189,30 @@ def plot_sli_points_pyvista_dual(
     ]
 
     plotter.add_title("Pixel frame: (u_px, v_px, Z_mm)", font_size=14)
-
-    # ============================================================
-    # RIGHT VIEW: Camera frame (X_mm, Y_mm, Z_disp) + image
-    # ============================================================
-    plotter.subplot(0, 1)
-    plotter.add_axes(line_width=2)
-    plotter.show_grid(
-        xtitle="X (mm)",
-        ytitle="Y (mm)",
-        ztitle="Z (mm)",
-    )
-
-    plotter.add_mesh(bbox_mm, opacity=0.0)
-
-    if image_path is not None:
-        tex_cam = pv.read_texture(image_path)
-        tex_cam.flip_y()
-        plotter.add_mesh(
-            plane_mm,
-            texture=tex_cam,
-            show_edges=True,
-            opacity=0.9,
-        )
-    else:
-        plotter.add_mesh(
-            plane_mm,
-            style="wireframe",
-            opacity=0.3,
-            show_edges=True,
-        )
-
-    plotter.add_mesh(
-        cloud_mm,
-        render_points_as_spheres=True,
-        point_size=15,
-        scalars="Z_mm",
-        cmap="viridis",
-        scalar_bar_args={"title": "Depth Z (mm)"},
-    )
-
-    center_mm = (float(np.mean(X_mm)), float(np.mean(Y_mm)), z_center_mm)
-    cam_height_mm = zmax_right + (zmax_right - zmin_right)
-    plotter.camera_position = [
-        (center_mm[0], center_mm[1], cam_height_mm),
-        center_mm,
-        (0, 1, 0),
-    ]
-
-    plotter.add_title("Camera frame: (X_mm, Y_mm, Z_mm)", font_size=14)
-
-    # -------- Show interactive window --------
     plotter.show()
 
 
 if __name__ == "__main__":
-    path_Obstacle = Config.SLI_CSV_GLOB_OBSTACLE
-    path_noObstacle = Config.SLI_CSV_GLOB_NO_OBSTACLE
+    obstacle_csv = Config.SLI_CSV_GLOB_OBSTACLE
+    #noObstacle_csv = Config.SLI_CSV_GLOB_NO_OBSTACLE
 
-    img_path_obstacle = Config.IMG_OBSTACLE
-    img_path_noObstacle = Config.IMG_NO_OBSTACLE
+    img_obstacle = Config.IMG_OBSTACLE
+    #img_noObstacle = Config.IMG_NO_OBSTACLE
 
-    # hard-coded tilt of 10 degrees
-    TILT_DEG = 10
-    plot_sli_points_pyvista_dual(path_noObstacle,image_path=img_path_noObstacle,tilt_deg=TILT_DEG, calibrateTilt=False)
-    plot_sli_points_pyvista_dual(path_noObstacle,image_path=img_path_noObstacle,tilt_deg=TILT_DEG, calibrateTilt=True)
-    TILT_DEG = 12.5
-    #plot_sli_points_pyvista_dual(path_noObstacle,image_path=img_path_noObstacle,tilt_deg=TILT_DEG, calibrateTilt=True)
-    TILT_DEG = 15
-    plot_sli_points_pyvista_dual(path_noObstacle, image_path=img_path_noObstacle, tilt_deg=TILT_DEG, calibrateTilt=True)
-    #plot_sli_points_pyvista_dual(path_Obstacle,image_path=img_path_obstacle,tilt_deg=TILT_DEG)
+    TILT_DEG = 5  # or 15, or whatever you decided
+
+    # --- create calibrated CSVs in the script directory ---
+    #export_calibrated_sli_csv(noObstacle_csv,output_name="calibrated_sli_noObstacle.csv",tilt_deg=TILT_DEG,calibrateTilt=True)
+
+    #export_calibrated_sli_csv(obstacle_csv,output_name="sli_obstacle.csv",tilt_deg=TILT_DEG,calibrateTilt=True)
+
+    # (optional) visualize using your existing function, now reading the *original*
+    # while knowing the CSV versions on disk are also calibrated.
+    #plot_sli_points(noObstacle_csv,image_path=img_noObstacle,tilt_deg=TILT_DEG,calibrateTilt=False)
+
+    plot_sli_points(
+        obstacle_csv,
+        image_path=img_obstacle,
+        tilt_deg=TILT_DEG,
+        calibrateTilt=False,
+    )

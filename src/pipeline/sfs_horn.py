@@ -1,10 +1,32 @@
 from __future__ import annotations
 import numpy as np
 
-
+def R_from_euler_xyz(pitch_deg=0.0, yaw_deg=0.0, roll_deg=0.0):
+    px, py, pz = np.deg2rad([pitch_deg, yaw_deg, roll_deg])
+    Rx = np.array([[1, 0, 0], [0, np.cos(px), -np.sin(px)], [0, np.sin(px), np.cos(px)]], dtype=np.float32)
+    Ry = np.array([[np.cos(py), 0, np.sin(py)], [0, 1, 0], [-np.sin(py), 0, np.cos(py)]], dtype=np.float32)
+    Rz = np.array([[np.cos(pz), -np.sin(pz), 0], [np.sin(pz), np.cos(pz), 0], [0, 0, 1]], dtype=np.float32)
+    return (Rx @ Ry @ Rz).astype(np.float32)
 # -------------------------------------------------------------------------
 # LED ring geometry: measured 6-LED ring around the camera
 # -------------------------------------------------------------------------
+def build_light_dirs_tilted(
+        angles_deg=[0, 60, 120, 180, 240, 300],
+        z_tilt=1.5,
+        cam_tilt_deg=(18.0, 0.0, 0.0)
+) -> np.ndarray:
+    # lights in rig frame
+    L_rows = []
+    for a in angles_deg:
+        v = np.array([np.cos(np.deg2rad(a)), np.sin(np.deg2rad(a)), z_tilt], dtype=np.float32)
+        v /= np.linalg.norm(v) + 1e-12
+        L_rows.append(v)  # (3,)
+    L_rig = np.stack(L_rows, axis=0).astype(np.float32)  # (N,3)
+
+    # rotate to camera frame
+    R = R_from_euler_xyz(*cam_tilt_deg)  # (3,3)
+    L_cam = (L_rig @ R.T).astype(np.float32)  # (N,3)
+    return L_cam
 
 def build_led_dirs_measured() -> np.ndarray:
     """
@@ -61,7 +83,6 @@ def _laplacian(X: np.ndarray) -> np.ndarray:
     lap += np.roll(X, 1, axis=1)
     lap += np.roll(X, -1, axis=1)
     return lap
-
 
 def integrate_slopes_poisson(p: np.ndarray, q: np.ndarray) -> np.ndarray:
     """

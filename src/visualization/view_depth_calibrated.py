@@ -3,11 +3,38 @@ from __future__ import annotations
 from pathlib import Path
 import numpy as np
 import pyvista as pv
+import pandas as pd
 
 from src.config import Config  # adjust import if needed
 
 
 # ---------- helpers ---------- #
+def load_sli_points_for_overlay(csv_path: Path):
+    """
+    Load SLI CSV the same way as visualize_sli_vectors.load_sli_points:
+
+      u_px, v_px : pixel coords (0..W-1, 0..H-1)
+      X_mm, Y_mm, Z_mm : camera frame in mm (with Y flipped)
+
+    We only use u_px, v_px, Z_mm for overlay.
+    """
+    df = pd.read_csv(csv_path)
+
+    u_px = df["u_px"].to_numpy(dtype=float)
+    v_px = df["v_px"].to_numpy(dtype=float)
+
+    X_um = df["X_um"].to_numpy(dtype=float)
+    Y_um = df["Y_um"].to_numpy(dtype=float)
+    Z_um = df["Z_um"].to_numpy(dtype=float)
+
+    X_mm = X_um / 1000.0
+    Y_mm = Y_um / 1000.0
+    Z_mm = Z_um / 1000.0
+
+    # Flip Y to match image orientation (same as visualize_sli_vectors)
+    Y_mm = -Y_mm
+
+    return u_px, v_px, X_mm, Y_mm, Z_mm
 
 def _make_grid_from_z(z: np.ndarray, pad_above: float = 0.5) -> pv.StructuredGrid:
     """
@@ -165,7 +192,9 @@ def show_sfs_calibrated(
         label: str,
         a: float | None = None,
         subtract_mean: bool = True,
-        exaggeration: float = 1.0,
+        exaggeration: float = 0.1,
+        texture_path: Path | None = None,
+        sli_csv_path: Path | None = None,     # <--- NEW
 ):
     """
     Show only the calibrated SfS depth as a terrain map for one dataset.
@@ -221,54 +250,97 @@ def show_sfs_calibrated(
     else:
         title = f"{label}: calibrated SfS (mean-removed, /-a, a={a:.4f})"
 
-    plotter = pv.Plotter(title=title,window_size=[1920, 1920])
-    plotter.add_mesh(grid, scalars="z", cmap="viridis", show_edges=False)
+    plotter = pv.Plotter(title=title, window_size=[1920, 1080])
+
+    texture = None
+    if texture_path is not None and texture_path.is_file():
+        # Load the composite image as a PyVista texture
+        texture = pv.read_texture(str(texture_path))
+        # Map (x,y) → texture coords in [0,1] using the grid bounds
+        grid.texture_map_to_plane(inplace=True)
+
+    if texture is not None:
+        # Show geometry with the composite image draped on top
+        plotter.add_mesh(grid, texture=texture, show_edges=False)
+    else:
+        # Fallback: plain height-colored surface
+        plotter.add_mesh(grid, scalars="z", cmap="viridis", show_edges=False)
+    # ------------------------------
+    # Add SLI points if available
+    # ------------------------------
+    if sli_csv_path is not None and sli_csv_path.is_file():
+        try:
+            u_px, v_px, X_mm, Y_mm, Z_mm = load_sli_points_for_overlay(sli_csv_path)
+        except Exception as e:
+            print("ERROR loading SLI CSV:", e)
+        else:
+            H, W = zc.shape
+
+            # ---- Flip vertically only (mirror in Y) ----
+            # Keep u as-is; flip v so SLI uses same origin as SfS+texture.
+            u_sfs = u_px
+            v_sfs = (H - 1) - v_px
+
+            # Sample SfS height at these locations
+            u_idx = np.clip(np.rint(u_sfs).astype(int), 0, W - 1)
+            v_idx = np.clip(np.rint(v_sfs).astype(int), 0, H - 1)
+            Z_sfs = zc_vis[v_idx, u_idx]
+
+            # Pixel-frame coordinates after flip
+            pts = np.column_stack([u_sfs, v_sfs, Z_sfs])
+
+            cloud = pv.PolyData(pts)
+            cloud["Z_mm"] = Z_mm
+
+            plotter.add_mesh(
+                cloud,
+                render_points_as_spheres=True,
+                point_size=13,
+                scalars="Z_mm",
+                cmap="viridis",
+                scalar_bar_args={"title": "SLI Z (mm)"},
+            )
     plotter.show_grid()
     plotter.show()
 
 
+
+
 # ---------- run for both datasets ---------- #
 
-def run_for_dataset(base_dir: Path, label: str, a: float | None = None):
-    """
-    Run all three viewers for a single dataset.
-
-    Parameters
-    ----------
-    base_dir : Path
-        Output folder for this dataset.
-    label : str
-        Label for titles.
-    a : float or None
-        Calibration slope used in main.py for this dataset; copy from:
-          "[LABEL] SfS–SLI calibration: scale a = ..."
-        If None, we won't rescale by 'a' in the plots.
-    """
+def run_for_dataset(base_dir, label, a=None, texture_path=None, sli_csv_path=None):
     compare_p_q(base_dir, label)
     compare_relative_calibrated(base_dir, label, a=a)
-    show_sfs_calibrated(base_dir, label, a=a,
-                        subtract_mean=True, exaggeration=1.0)
+    show_sfs_calibrated(
+        base_dir, label,
+        a=a,
+        subtract_mean=True,
+        exaggeration=1.0,
+        texture_path=texture_path,
+        sli_csv_path=sli_csv_path,   # <--- PASS IT
+    )
 
 
 def main():
     # Use the output dirs defined in Config
     base_no_obstacle = Path(Config.OUTPUT_DIR_DEPTH_NO_OBSTACLE)
-    base_obstacle = Path(Config.OUTPUT_DIR_DEPTH_OBSTACLE)
+    base_obstacle    = Path(Config.OUTPUT_DIR_DEPTH_OBSTACLE)
 
     print(f"NO_OBSTACLE output dir: {base_no_obstacle}")
     print(f"OBSTACLE  output dir: {base_obstacle}")
 
-    # === IMPORTANT ===
-    # Put in the calibration slopes 'a' from your console output
-    # for each dataset, or set to None to skip a-based rescaling.
-    a_no_obstacle = 0.179953  # e.g. 0.179953 for rho = 1, 0.486064 for rho = 0.55
-    a_obstacle    = 0.5   # e.g. -0.235702 for rho = 1, -0.220645 for rho = 0.55
+    a_no_obstacle = -0.355315
+    a_obstacle    = 0.136831
+
+    tex_no  = base_no_obstacle / "sfs_input_composite.png"
+    tex_obs = base_obstacle    / "sfs_input_composite.png"
 
     # NO_OBSTACLE dataset
-    run_for_dataset(base_no_obstacle, label="NO_OBSTACLE", a=a_no_obstacle)
+    #run_for_dataset(base_no_obstacle, label="NO_OBSTACLE",a=a_no_obstacle, texture_path=tex_no)
 
     # OBSTACLE dataset
-    run_for_dataset(base_obstacle, label="OBSTACLE", a=a_obstacle)
+    run_for_dataset(base_obstacle, label="OBSTACLE", a=a_obstacle, texture_path=tex_obs,sli_csv_path=Path(Config.SLI_CSV_GLOB_OBSTACLE))
+
 
 
 if __name__ == "__main__":
