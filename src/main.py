@@ -16,6 +16,8 @@ from .photometric_stereo import (
 )
 from .depth_estimation import normals_to_depth
 from .visualization import save_normals_rgb, save_shadow_maps, save_depth_plot
+from .illumination_calibration import apply_illumination_calibration
+
 
 
 def main(
@@ -28,7 +30,11 @@ def main(
         norm_dir: str = Config.OUTPUT_DIR_NORMALIZATION,
         shadow_dir: str = Config.OUTPUT_DIR_SHADOWS,
         use_otsu: bool = True,
-        mask_quantile: float = Config.DEFAULT_MASK_QUANTILE
+        mask_quantile: float = Config.DEFAULT_MASK_QUANTILE,
+        calibration_file: str = None,  # NEW
+        working_height: float = 100.0,  # NEW (in mm)
+        use_illumination_correction: bool = True,  # NEW
+        **kwargs
 ):
     # Ensure output directories exist
     for d in [output_dir, albedo_dir, composite_dir, depth_dir, mask_dir, norm_dir, shadow_dir]:
@@ -39,6 +45,19 @@ def main(
 
     # Load images
     I, files = load_pngs(input_glob_or_folder)
+
+    # === NEW: Apply illumination correction ===
+    if use_illumination_correction and calibration_file:
+        print(f"Loading calibration from {calibration_file}...")
+        calibration_data = np.load(calibration_file, allow_pickle=True).item()
+        
+        print(f"Applying illumination correction for {working_height}mm working distance...")
+        I = apply_illumination_calibration(
+            I, 
+            calibration_data,
+            working_height=working_height,
+            pixel_size=Config.DEFAULT_PIXEL_SIZE * 1000  # Convert m to mm
+        )
 
     # Mask
     if use_otsu:
