@@ -23,7 +23,7 @@ def otsu_on_max(I: np.ndarray, morph_open_ksize: int = Config.DEFAULT_MORPH_OPEN
     Imax = I.max(axis=-1)
     I8 = normalize_uint8(Imax)
     thr, _ = cv2.threshold(I8, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU) # This is pretty important for stereo determination
-    mask = (I8 >= int(thr * 0.50)).astype(np.uint8)  # Multiplying the thr value between 0-0.99 determines how aggressive we handle shadows
+    mask = (I8 >= int(thr * 0.60)).astype(np.uint8)  # Multiplying the thr value between 0-0.99 determines how aggressive we handle shadows
     if morph_open_ksize > 0:
         k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (morph_open_ksize, morph_open_ksize))
         mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, k, iterations=1)

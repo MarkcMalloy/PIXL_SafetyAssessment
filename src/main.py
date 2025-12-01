@@ -19,6 +19,7 @@ from .visualization import save_normals_rgb, save_shadow_maps, save_depth_plot
 from .illumination_calibration import apply_illumination_calibration
 
 
+from .overlay_sli_point import load_sli_csv, overlay_sli_points
 
 def main(
         input_glob_or_folder: str = Config.DEFAULT_INPUT_GLOB,
@@ -42,7 +43,7 @@ def main(
 
     print(f"Input glob: {input_glob_or_folder}")
     print(f"Output directory: {output_dir}")
-
+    overlay_sli_points()
     # Load images
     I, files = load_pngs(input_glob_or_folder)
 
