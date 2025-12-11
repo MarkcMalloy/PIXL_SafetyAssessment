@@ -15,6 +15,9 @@ class Config:
 
     DEFAULT_ILLUMINATION_CALIBRATION_GLOB = str(PROJECT_ROOT / "calibration" / "output" / "illumination_calibration.npy")
 
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
     DEFAULT_OUTPUT_DIR = str(PROJECT_ROOT / "Output")
 
