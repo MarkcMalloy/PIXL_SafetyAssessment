@@ -6,7 +6,16 @@ class Config:
     PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
     # --- Input / Output paths ---
+<<<<<<< Updated upstream
     DEFAULT_INPUT_GLOB = str(PROJECT_ROOT / "PIXL_Images" / "Cal_Images" / "*.png")
+=======
+    #DEFAULT_INPUT_GLOB = str(PROJECT_ROOT / "PIXL_Images" / "TestData" / "*.png")
+    DEFAULT_INPUT_GLOB = str(PROJECT_ROOT / "PIXL_Images" / "CalData" / "PIXL_040mm_dist" / "WithObstacle"/ "images"  /"*.png")
+    DEFAULT_SLI_CSV_GLOB = str(PROJECT_ROOT / "PIXL_Images" / "CalData" / "PIXL_040mm_dist" / "WithObstacle"  /"*.csv")
+
+    DEFAULT_ILLUMINATION_CALIBRATION_GLOB = str(PROJECT_ROOT / "calibration" / "output" / "illumination_calibration.npy")
+
+>>>>>>> Stashed changes
     DEFAULT_OUTPUT_DIR = str(PROJECT_ROOT / "Output")
 
     OUTPUT_DIR_ALBEDO = str(PROJECT_ROOT / "Output" / "Albedo")

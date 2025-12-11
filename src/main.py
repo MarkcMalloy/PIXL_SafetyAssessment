@@ -28,7 +28,15 @@ def main(
         norm_dir: str = Config.OUTPUT_DIR_NORMALIZATION,
         shadow_dir: str = Config.OUTPUT_DIR_SHADOWS,
         use_otsu: bool = True,
+<<<<<<< Updated upstream
         mask_quantile: float = Config.DEFAULT_MASK_QUANTILE
+=======
+        mask_quantile: float = Config.DEFAULT_MASK_QUANTILE,
+        calibration_file: str = Config.DEFAULT_ILLUMINATION_CALIBRATION_GLOB,  # NEW
+        working_height: float = 100.0,  # NEW (in mm)
+        use_illumination_correction: bool = True,  # NEW
+        **kwargs
+>>>>>>> Stashed changes
 ):
     # Ensure output directories exist
     for d in [output_dir, albedo_dir, composite_dir, depth_dir, light_dir, mask_dir, norm_dir, shadow_dir]:
