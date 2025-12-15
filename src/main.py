@@ -5,7 +5,7 @@ import cv2  # <- needed for bilateralFilter
 
 from .config import Config
 from .image_io import load_pngs, save_image, save_float_array
-from .preprocessing import otsu_on_max, quantile_mask, normalize_uint8
+from .preprocessing import otsu_on_max,otsu_max_mask2, quantile_mask, normalize_uint8
 from .photometric_stereo import (
     build_light_dirs,            # basic ring model
     build_light_dirs_tilted,     # ring + camera tilt
@@ -14,7 +14,7 @@ from .photometric_stereo import (
     solve_photometric_stereo,
     solve_photometric_stereo_uniform_albedo,
 )
-from .depth_estimation import normals_to_depth
+from .depth_estimation import normals_to_depth, calibrate_depth_with_sli
 from .visualization import save_normals_rgb, save_shadow_maps, save_depth_plot
 from .illumination_calibration import apply_illumination_calibration
 
@@ -22,7 +22,8 @@ from .illumination_calibration import apply_illumination_calibration
 from .overlay_sli_point import load_sli_csv, overlay_sli_points
 
 def main(
-        input_glob_or_folder: str = Config.DEFAULT_INPUT_GLOB,
+        #input_glob_or_folder: str = Config.DEFAULT_INPUT_GLOB_40mm,
+        input_glob_or_folder: str = Config.DEFAULT_INPUT_GLOB_100mm,
         output_dir: str = Config.DEFAULT_OUTPUT_DIR,
         albedo_dir: str = Config.OUTPUT_DIR_ALBEDO,
         composite_dir: str = Config.OUTPUT_DIR_COMPOSITES,
@@ -62,7 +63,15 @@ def main(
 
     # Mask
     if use_otsu:
-        mask, Imax = otsu_on_max(I)
+        print(f"Applying otsu threshold for {working_height}mm working distance...")
+        mask, Imax = otsu_max_mask2(
+            I,
+            core_scale=0.9,  # instead of 1.0
+            morph_open_ksize=1,  # gentler opening (or 0 to disable)
+            edge_dilate_ksize=7  # bigger halo for grazing edges
+        )
+
+        #mask, Imax = otsu_on_max(I)
     else:
         Imax = I.max(axis=-1)
         mask = quantile_mask(I, mask_quantile)
@@ -102,7 +111,7 @@ def main(
 
     # Save other outputs
     save_image(normalize_uint8(albedo), str(Path(albedo_dir) / "albedo.png"))
-    save_image(normalize_uint8(np.nan_to_num(z, nan=0.0)), str(Path(depth_dir) / "depth.png"))
+    save_image(normalize_uint8(np.nan_to_num(z, nan=0.0)), str(Path(depth_dir) / "depth_100.png"))
     save_float_array(z, str(Path(depth_dir) / "depth.npy"), format="npy")
     save_float_array(z, str(Path(depth_dir) / "depth.pfm"), format="pfm")
     save_depth_plot(z, mask, str(Path(depth_dir) / "depth_3d.png"))
@@ -121,10 +130,32 @@ def main(
         print(f" - {f}")
     print(f"Wrote outputs to: {Path(output_dir).resolve()}")
 
+    # Example: after z_rel has been computed from normals
+    z_rel = normals_to_depth(n, mask, pixel_size=Config.DEFAULT_PIXEL_SIZE)
+
+    depth_path = Path(depth_dir) / "depth.npy"
+    np.save(depth_path, z_rel.astype(np.float32))
+
+    # --- New: calibrate with SLI CSV ---
+    #sli_csv_path = Path(Config.DEFAULT_SLI_CSV_GLOB_40mm)  # or wherever your CSV lives
+    sli_csv_path = Path(Config.DEFAULT_SLI_CSV_GLOB_100mm)  # or wherever your CSV lives
+    cal_depth_path = Path(depth_dir) / "cal_depth.npy"
+
+    if sli_csv_path.exists():
+        calibrate_depth_with_sli(
+            depth_npy_path=str(depth_path),
+            sli_csv_path=str(sli_csv_path),
+            output_path=str(cal_depth_path),
+            use_least_squares=True,  # robust mode
+            mask_npy_path=None,  # or path to your own mask.npy
+        )
+    else:
+        print(f"[CALIBRATION] SLI CSV not found: {sli_csv_path}")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Photometric Stereo Pipeline")
-    parser.add_argument("--input", default=Config.DEFAULT_INPUT_GLOB, help="Input glob or folder")
+    parser.add_argument("--input", default=Config.DEFAULT_INPUT_GLOB_100mm, help="Input glob or folder")
     parser.add_argument("--output", default=Config.DEFAULT_OUTPUT_DIR, help="Base output directory")
     parser.add_argument("--albedo-dir", default=Config.OUTPUT_DIR_ALBEDO, help="Albedo output directory")
     parser.add_argument("--composite-dir", default=Config.OUTPUT_DIR_COMPOSITES, help="Composites output directory")

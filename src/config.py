@@ -6,18 +6,29 @@ class Config:
     PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
     # --- Input / Output paths ---
+    OBJECTTYPE = "noObstacle"
+    #OBJECTTYPE = "obstacle"
+    #OBJECTTYPE = "Calibration"
+
     #DEFAULT_INPUT_GLOB = str(PROJECT_ROOT / "PIXL_Images" / "TestData" / "*.png")
-    DEFAULT_INPUT_GLOB = str(PROJECT_ROOT / "PIXL_Images" / "CalData" / "PIXL_040mm_dist" / "WithObstacle"/ "images"  /"*.png")
-    DEFAULT_SLI_CSV_GLOB = str(PROJECT_ROOT / "PIXL_Images" / "CalData" / "PIXL_040mm_dist" / "WithObstacle"  /"*.csv")
+    DEFAULT_INPUT_GLOB_40mm = str(PROJECT_ROOT / "PIXL_Images" / "CalData" / "PIXL_040mm_dist" / OBJECTTYPE / "images" / "*.png")
+    DEFAULT_SLI_CSV_GLOB_40mm = str(PROJECT_ROOT / "PIXL_Images" / "CalData" / "PIXL_040mm_dist" / OBJECTTYPE / "A251110_13373123_SLI_points.csv")
+
+    DEFAULT_INPUT_GLOB_100mm = str(PROJECT_ROOT / "PIXL_Images" / "CalData" / "PIXL_100mm_dist" / OBJECTTYPE / "images" / "*.png")
+    DEFAULT_SLI_CSV_GLOB_100mm = str(PROJECT_ROOT / "PIXL_Images" / "CalData" / "PIXL_100mm_dist" / OBJECTTYPE / "A251110_13142780_SLI_points.csv")
+
+
 
     DEFAULT_OUTPUT_DIR = str(PROJECT_ROOT / "Output")
 
-    OUTPUT_DIR_ALBEDO = str(PROJECT_ROOT / "Output" / "Albedo")
-    OUTPUT_DIR_COMPOSITES = str(PROJECT_ROOT / "Output" / "Composites")
-    OUTPUT_DIR_DEPTH = str(PROJECT_ROOT / "Output" / "Depth")
-    OUTPUT_DIR_MASKS = str(PROJECT_ROOT / "Output" / "Masks")
-    OUTPUT_DIR_NORMALIZATION = str(PROJECT_ROOT / "Output" / "Normalizations")
-    OUTPUT_DIR_SHADOWS = str(PROJECT_ROOT / "Output" / "Shadows")
+    OUTPUT_DIR_ALBEDO = str(PROJECT_ROOT / DEFAULT_OUTPUT_DIR / OBJECTTYPE / "Albedo")
+    OUTPUT_DIR_COMPOSITES = str(PROJECT_ROOT / DEFAULT_OUTPUT_DIR / OBJECTTYPE / "Composites")
+    OUTPUT_DIR_DEPTH = str(PROJECT_ROOT / DEFAULT_OUTPUT_DIR / OBJECTTYPE / "Depth")
+    OUTPUT_DIR_MASKS = str(PROJECT_ROOT / DEFAULT_OUTPUT_DIR / OBJECTTYPE / "Masks")
+    OUTPUT_DIR_NORMALIZATION = str(PROJECT_ROOT / DEFAULT_OUTPUT_DIR / OBJECTTYPE / "Normalizations")
+    OUTPUT_DIR_SHADOWS = str(PROJECT_ROOT / DEFAULT_OUTPUT_DIR / OBJECTTYPE /"Shadows")
+    OUTPUT_DIR_SEGMENTATION = str(PROJECT_ROOT / DEFAULT_OUTPUT_DIR / OBJECTTYPE /"Segmentation")
+
 
     # --- Photometric parameters ---
     DEFAULT_MORPH_OPEN_KSIZE = 3

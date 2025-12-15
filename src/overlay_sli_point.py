@@ -79,8 +79,11 @@ def overlay_sli_points(
 
     Called from src.main.main() with defaults from Config.
     """
-    IMAGE_GLOB = image_glob or Config.DEFAULT_INPUT_GLOB
-    CSV_GLOB = csv_glob or Config.DEFAULT_SLI_CSV_GLOB
+    #IMAGE_GLOB = image_glob or Config.DEFAULT_INPUT_GLOB_40mm
+    #CSV_GLOB = csv_glob or Config.DEFAULT_SLI_CSV_GLOB_40mm
+
+    IMAGE_GLOB = image_glob or Config.DEFAULT_INPUT_GLOB_100mm
+    CSV_GLOB = csv_glob or Config.DEFAULT_SLI_CSV_GLOB_100mm
 
     PIXEL_ORIGIN = "matlab"  # options: "matlab" (1-based), "python" (0-based)
     POINT_RADIUS = 4
@@ -159,12 +162,14 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Overlay SLI points on an image")
     parser.add_argument(
         "--image-glob",
-        default=Config.DEFAULT_INPUT_GLOB,
+        #default=Config.DEFAULT_INPUT_GLOB_40mm,
+        default=Config.DEFAULT_INPUT_GLOB_100mm,
         help="Glob for input image(s); first match is used",
     )
     parser.add_argument(
         "--csv-glob",
-        default=Config.DEFAULT_SLI_CSV_GLOB,
+        #default=Config.DEFAULT_SLI_CSV_GLOB_40mm,
+        default=Config.DEFAULT_INPUT_GLOB_100mm,
         help="Glob for SLI CSV file; first match is used",
     )
     args = parser.parse_args()
