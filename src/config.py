@@ -1,21 +1,22 @@
+from __future__ import annotations
+
 from pathlib import Path
 
 class Config:
     # --- Project root resolution ---
-    # This automatically finds the top-level folder (one up from /src)
     PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
     # --- Input / Output paths ---
-    OBJECTTYPE = "noObstacle"
-    #OBJECTTYPE = "obstacle"
+    #OBJECTTYPE = "noObstacle"
+    OBJECTTYPE = "obstacle"
     #OBJECTTYPE = "Calibration"
 
     #DEFAULT_INPUT_GLOB = str(PROJECT_ROOT / "PIXL_Images" / "TestData" / "*.png")
     DEFAULT_INPUT_GLOB_40mm = str(PROJECT_ROOT / "PIXL_Images" / "CalData" / "PIXL_040mm_dist" / OBJECTTYPE / "images" / "*.png")
-    DEFAULT_SLI_CSV_GLOB_40mm = str(PROJECT_ROOT / "PIXL_Images" / "CalData" / "PIXL_040mm_dist" / OBJECTTYPE / "A251110_13373123_SLI_points.csv")
+    DEFAULT_SLI_CSV_GLOB_40mm = str(PROJECT_ROOT / "PIXL_Images" / "CalData" / "PIXL_040mm_dist" / OBJECTTYPE / "*.csv")
 
     DEFAULT_INPUT_GLOB_100mm = str(PROJECT_ROOT / "PIXL_Images" / "CalData" / "PIXL_100mm_dist" / OBJECTTYPE / "images" / "*.png")
-    DEFAULT_SLI_CSV_GLOB_100mm = str(PROJECT_ROOT / "PIXL_Images" / "CalData" / "PIXL_100mm_dist" / OBJECTTYPE / "A251110_13142780_SLI_points.csv")
+    DEFAULT_SLI_CSV_GLOB_100mm = str(PROJECT_ROOT / "PIXL_Images" / "CalData" / "PIXL_100mm_dist" / OBJECTTYPE / "*.csv")
 
 
 
@@ -50,3 +51,33 @@ class Config:
     def ensure_dir(path: str):
         """Create directory if it doesn't exist."""
         Path(path).mkdir(parents=True, exist_ok=True)
+
+    @staticmethod
+    def resolve_single_csv(csv_glob: str) -> Path | None:
+        """
+        Accepts absolute or relative globs like:
+          C:/.../PIXL_040mm_dist/obstacle/*.csv
+          PIXL_Images/CalData/.../*.csv
+        Returns the single CSV Path if exactly one exists.
+        """
+        p = Path(csv_glob)
+
+        # If they passed a glob (like *.csv), p.name is the pattern and p.parent is the folder
+        folder = p.parent
+        pattern = p.name
+
+        print(f"Finding csv in: {folder} pattern: {pattern}")
+
+        if not folder.exists():
+            return None
+
+        matches = sorted(folder.glob(pattern))
+
+        if len(matches) == 0:
+            return None
+        if len(matches) > 1:
+            raise RuntimeError(
+                "Expected exactly 1 CSV but found multiple:\n"
+                + "\n".join(f" - {m}" for m in matches)
+            )
+        return matches[0]

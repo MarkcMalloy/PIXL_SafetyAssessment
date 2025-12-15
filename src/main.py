@@ -1,12 +1,14 @@
+from __future__ import annotations
+
 import argparse
 from pathlib import Path
 import numpy as np
 import cv2  # <- needed for bilateralFilter
 
-from .config import Config
-from .image_io import load_pngs, save_image, save_float_array
-from .preprocessing import otsu_on_max,otsu_max_mask2, quantile_mask, normalize_uint8
-from .photometric_stereo import (
+from src.config import Config
+from src.image_io import load_pngs, save_image, save_float_array
+from src.preprocessing import otsu_on_max,otsu_max_mask2, quantile_mask, normalize_uint8
+from src.photometric_stereo import (
     build_light_dirs,            # basic ring model
     build_light_dirs_tilted,     # ring + camera tilt
     build_light_dirs_point,      # point-light (tilt + optional offset)
@@ -14,16 +16,16 @@ from .photometric_stereo import (
     solve_photometric_stereo,
     solve_photometric_stereo_uniform_albedo,
 )
-from .depth_estimation import normals_to_depth, calibrate_depth_with_sli
-from .visualization import save_normals_rgb, save_shadow_maps, save_depth_plot
-from .illumination_calibration import apply_illumination_calibration
+from src.depth_estimation import normals_to_depth, calibrate_depth_with_sli
+from src.visualization import save_normals_rgb, save_shadow_maps, save_depth_plot
+from src.illumination_calibration import apply_illumination_calibration
 
 
-from .overlay_sli_point import load_sli_csv, overlay_sli_points
+from src.overlay_sli_point import load_sli_csv, overlay_sli_points
 
 def main(
-        #input_glob_or_folder: str = Config.DEFAULT_INPUT_GLOB_40mm,
-        input_glob_or_folder: str = Config.DEFAULT_INPUT_GLOB_100mm,
+        input_glob_or_folder: str = Config.DEFAULT_INPUT_GLOB_40mm,
+        sli_csv_glob: str = Config.DEFAULT_SLI_CSV_GLOB_40mm,
         output_dir: str = Config.DEFAULT_OUTPUT_DIR,
         albedo_dir: str = Config.OUTPUT_DIR_ALBEDO,
         composite_dir: str = Config.OUTPUT_DIR_COMPOSITES,
@@ -33,9 +35,9 @@ def main(
         shadow_dir: str = Config.OUTPUT_DIR_SHADOWS,
         use_otsu: bool = True,
         mask_quantile: float = Config.DEFAULT_MASK_QUANTILE,
-        calibration_file: str = None,  # NEW
-        working_height: float = 100.0,  # NEW (in mm)
-        use_illumination_correction: bool = True,  # NEW
+        calibration_file: str = None,
+        working_height: float = 40.0, #mm
+        use_illumination_correction: bool = True,
         **kwargs
 ):
     # Ensure output directories exist
@@ -44,7 +46,7 @@ def main(
 
     print(f"Input glob: {input_glob_or_folder}")
     print(f"Output directory: {output_dir}")
-    overlay_sli_points()
+    #overlay_sli_points()
     # Load images
     I, files = load_pngs(input_glob_or_folder)
 
@@ -136,46 +138,43 @@ def main(
     depth_path = Path(depth_dir) / "depth.npy"
     np.save(depth_path, z_rel.astype(np.float32))
 
-    # --- New: calibrate with SLI CSV ---
-    #sli_csv_path = Path(Config.DEFAULT_SLI_CSV_GLOB_40mm)  # or wherever your CSV lives
-    sli_csv_path = Path(Config.DEFAULT_SLI_CSV_GLOB_100mm)  # or wherever your CSV lives
+    # Calibrate depth with SLI data ---
+    # sli_csv_path = Config.resolve_single_csv(Config.DEFAULT_SLI_CSV_GLOB_100mm)
+    if sli_csv_glob:
+        sli_csv_path = Config.resolve_single_csv(sli_csv_glob)
+    else:
+        sli_csv_path = None
+
     cal_depth_path = Path(depth_dir) / "cal_depth.npy"
 
-    if sli_csv_path.exists():
+    if sli_csv_path and sli_csv_path.exists():
         calibrate_depth_with_sli(
             depth_npy_path=str(depth_path),
             sli_csv_path=str(sli_csv_path),
             output_path=str(cal_depth_path),
-            use_least_squares=True,  # robust mode
-            mask_npy_path=None,  # or path to your own mask.npy
+            use_least_squares=True,
+            mask_npy_path=None,
         )
     else:
-        print(f"[CALIBRATION] SLI CSV not found: {sli_csv_path}")
+        print(f"[CALIBRATION] SLI CSV not found for glob: {sli_csv_glob}")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Photometric Stereo Pipeline")
-    parser.add_argument("--input", default=Config.DEFAULT_INPUT_GLOB_100mm, help="Input glob or folder")
-    parser.add_argument("--output", default=Config.DEFAULT_OUTPUT_DIR, help="Base output directory")
-    parser.add_argument("--albedo-dir", default=Config.OUTPUT_DIR_ALBEDO, help="Albedo output directory")
-    parser.add_argument("--composite-dir", default=Config.OUTPUT_DIR_COMPOSITES, help="Composites output directory")
-    parser.add_argument("--depth-dir", default=Config.OUTPUT_DIR_DEPTH, help="Depth output directory")
-    parser.add_argument("--mask-dir", default=Config.OUTPUT_DIR_MASKS, help="Masks output directory")
-    parser.add_argument("--norm-dir", default=Config.OUTPUT_DIR_NORMALIZATION, help="Normalizations output directory")
-    parser.add_argument("--shadow-dir", default=Config.OUTPUT_DIR_SHADOWS, help="Shadows output directory")
-    parser.add_argument("--no-otsu", action="store_false", dest="use_otsu", help="Use quantile mask instead of Otsu")
-    parser.add_argument("--mask-quantile", type=float, default=Config.DEFAULT_MASK_QUANTILE, help="Quantile for mask")
     args = parser.parse_args()
 
     main(
-        input_glob_or_folder=args.input,
-        output_dir=args.output,
-        albedo_dir=args.albedo_dir,
-        composite_dir=args.composite_dir,
-        depth_dir=args.depth_dir,
-        mask_dir=args.mask_dir,
-        norm_dir=args.norm_dir,
-        shadow_dir=args.shadow_dir,
-        use_otsu=args.use_otsu,
-        mask_quantile=args.mask_quantile
+        input_glob_or_folder=Config.DEFAULT_INPUT_GLOB_40mm,
+        sli_csv_glob=Config.DEFAULT_SLI_CSV_GLOB_40mm,
+        working_height=40.0,
+        output_dir=Config.DEFAULT_OUTPUT_DIR,
+        albedo_dir=Config.OUTPUT_DIR_ALBEDO,
+        composite_dir=Config.OUTPUT_DIR_COMPOSITES,
+        depth_dir=Config.OUTPUT_DIR_DEPTH,
+        mask_dir=Config.OUTPUT_DIR_MASKS,
+        norm_dir=Config.OUTPUT_DIR_NORMALIZATION,
+        shadow_dir=Config.OUTPUT_DIR_SHADOWS,
+        use_otsu=True,
+        mask_quantile=Config.DEFAULT_MASK_QUANTILE,
+        use_illumination_correction= True,
     )

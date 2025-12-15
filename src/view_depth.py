@@ -186,16 +186,16 @@ def main():
         depth_path=Path(Config.OUTPUT_DIR_DEPTH) / "depth.npy",
         label="Relative Depth",
         subtract_mean=True,
-        exaggeration=1,
-        texture_path=texture,
+        exaggeration=5,
+        texture_path=None,
         sli_csv_path=Path(Config.DEFAULT_SLI_CSV_GLOB_40mm)
     )
     show_depth_map(
         depth_path=Path(Config.OUTPUT_DIR_DEPTH) / "cal_depth.npy",
         label="Calibrated Depth",
         subtract_mean=True,
-        exaggeration=1,
-        texture_path=texture,
+        exaggeration=5,
+        texture_path=None,
         sli_csv_path=Path(Config.DEFAULT_SLI_CSV_GLOB_40mm)
     )
 

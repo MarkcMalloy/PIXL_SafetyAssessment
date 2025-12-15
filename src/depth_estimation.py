@@ -145,8 +145,8 @@ def calibrate_depth_with_sli(
     for idx in range(min(max_print, len(z_samples_valid))):
         print(
             f"  #{idx:3d}: "
-            f"u={u_valid[idx]:7.2f} (idx {u_i_valid[idx]:3d}), "
-            f"v={v_valid[idx]:7.2f} (idx {v_i_valid[idx]:3d}) | "
+            f"u={u_valid[idx]:7.2f}), "
+            f"v={v_valid[idx]:7.2f}) | "
             f"z_rel={z_samples_valid[idx]:9.5f} -> Z_mm={Z_abs_valid[idx]:9.5f}"
         )
     if len(z_samples_valid) > max_print:
