@@ -168,7 +168,7 @@ def show_depth_map(
                 plotter.add_mesh(
                     cloud,
                     render_points_as_spheres=True,
-                    point_size=13,
+                    point_size=12,
                     scalars="Z_mm",
                     cmap="viridis",
                     scalar_bar_args={"title": "SLI Z (mm)"},
@@ -182,21 +182,26 @@ def show_depth_map(
 
 def main():
     texture = Path(Config.OUTPUT_DIR_COMPOSITES) / "composite_max.png"
+
+    # Resolve the single CSV from the glob (returns Path or None)
+    sli_csv = Config.resolve_single_csv(Config.DEFAULT_SLI_CSV_GLOB_40mm)
+
     show_depth_map(
-        depth_path=Path(Config.OUTPUT_DIR_DEPTH) / "depth.npy",
+        depth_path=Path(Config.OUTPUT_DIR_DEPTH) / "depth_tilted.npy",
         label="Relative Depth",
         subtract_mean=True,
-        exaggeration=5,
-        texture_path=None,
-        sli_csv_path=Path(Config.DEFAULT_SLI_CSV_GLOB_40mm)
+        exaggeration=1,
+        texture_path=texture,
+        sli_csv_path=sli_csv,
     )
+
     show_depth_map(
         depth_path=Path(Config.OUTPUT_DIR_DEPTH) / "cal_depth.npy",
         label="Calibrated Depth",
         subtract_mean=True,
-        exaggeration=5,
-        texture_path=None,
-        sli_csv_path=Path(Config.DEFAULT_SLI_CSV_GLOB_40mm)
+        exaggeration=3,
+        texture_path=texture,
+        sli_csv_path=sli_csv,
     )
 
 

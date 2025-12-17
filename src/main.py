@@ -3,7 +3,8 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 import numpy as np
-import cv2  # <- needed for bilateralFilter
+import cv2
+import re
 
 from src.config import Config
 from src.image_io import load_pngs, save_image, save_float_array
@@ -22,6 +23,29 @@ from src.illumination_calibration import apply_illumination_calibration
 
 
 from src.overlay_sli_point import load_sli_csv, overlay_sli_points
+
+
+D_RE = re.compile(r"_D(\d+)(?:\.png)$")
+
+def extract_single_d_from_filename(path: str) -> int | None:
+    m = D_RE.search(path.replace("\\", "/"))
+    if not m:
+        return None
+    return int(m.group(1))
+
+def filter_and_order_by_d(I: np.ndarray, files: list[str]):
+    keep_idx = []
+    d_list = []
+    for i, f in enumerate(files):
+        d = extract_single_d_from_filename(f)
+        if d is None:
+            continue
+        keep_idx.append(i)
+        d_list.append(d)
+    I2 = I[..., keep_idx]
+    files2 = [files[i] for i in keep_idx]
+    return I2, files2, d_list
+
 
 def main(
         input_glob_or_folder: str = Config.DEFAULT_INPUT_GLOB_40mm,
@@ -50,6 +74,11 @@ def main(
     # Load images
     I, files = load_pngs(input_glob_or_folder)
 
+    I, files, d_list = filter_and_order_by_d(I, files)
+    print("Using files:")
+    for f, d in zip(files, d_list):
+        print(f" - D{d}: {f}")
+
     # === NEW: Apply illumination correction ===
     if use_illumination_correction and calibration_file:
         print(f"Loading calibration from {calibration_file}...")
@@ -68,7 +97,7 @@ def main(
         print(f"Applying otsu threshold for {working_height}mm working distance...")
         mask, Imax = otsu_max_mask2(
             I,
-            core_scale=0.9,  # instead of 1.0
+            core_scale=0.5,
             morph_open_ksize=1,  # gentler opening (or 0 to disable)
             edge_dilate_ksize=7  # bigger halo for grazing edges
         )
@@ -84,28 +113,78 @@ def main(
     I_cal = I / s[None, None, :]
 
     # --- Compute normals for each light model and save for comparison ---
+    # --- Build measured light directions subset from PNG suffixes (D#) ---
+    # d_list must already be computed from filenames in the same order as I_cal's channels.
+    K = I_cal.shape[-1]
+    if len(d_list) != K:
+        raise ValueError(f"d_list length ({len(d_list)}) must match #images K ({K}).")
+
+    # Map D-index (from filename suffix _D3.png .. _D6.png) -> row index in measured 6-light model (0-based)
+    # NOTE: This mapping assumes your measured model rows correspond to 6 green LEDs in a fixed order,
+    # and that D3..D6 correspond to rows 2..5 in that model.
+    # D1..D6 map directly to G1..G6 (0-based row index = D-1)
+    D_TO_G_INDEX = {d: d - 1 for d in range(1, 7)}
+
+    # Full 6-light measured model
+    L6_measured = build_light_dirs_point_measured()  # rows correspond to G1..G6 led_data order :contentReference[oaicite:2]{index=2}
+    L_measured_subset = np.stack([L6_measured[D_TO_G_INDEX[d]] for d in d_list], axis=0)
+
+    # Subset measured directions in EXACT same order as the input images
+    try:
+        L_measured_subset = np.stack([L6_measured[D_TO_G_INDEX[d]] for d in d_list], axis=0)  # shape (K,3)
+    except KeyError as e:
+        raise ValueError(f"Unknown D index in filenames (no mapping in D_TO_G_INDEX): {e}")
+
+    # (Optional) debug print
+    print("Using measured LED directions (in image order):")
+    for f, d, v in zip(files, d_list, L_measured_subset):
+        print(f"  {Path(f).name}: D{d} -> {v}")
+
+    # --- Compute normals for each light model and save for comparison ---
+    # We keep your existing variants, but enforce that L matches K images.
     variants = {
-        "basic":  build_light_dirs,
+        "basic": build_light_dirs,
         "tilted": build_light_dirs_tilted,
-        "point":  build_light_dirs_point,
-        "measured": build_light_dirs_point_measured
+        "point": build_light_dirs_point,
+        "measured": None,  # handled explicitly below
     }
 
     normals_by_variant = {}
     albedo_by_variant = {}
 
     for name, builder in variants.items():
-        L = builder()
+        if name == "measured":
+            L = L_measured_subset
+        else:
+            L_full = builder()  # many of your builders likely return (6,3)
+
+            # Make L match the number of images K.
+            if L_full.shape[0] == K:
+                L = L_full
+            elif L_full.shape[0] == 6 and K < 6:
+                # Subset the same rows used by measured mapping so all models compare on the same LED set
+                g_idx_list = [D_TO_G_INDEX[d] for d in d_list]
+                L = np.stack([L_full[g] for g in g_idx_list], axis=0)
+            else:
+                raise ValueError(
+                    f"Variant '{name}': builder returned L with shape {L_full.shape}, "
+                    f"but need (#lights == #images) = {K}."
+                )
+
+        # Solve photometric stereo
         albedo_v, n_v = solve_photometric_stereo(I_cal, L, mask)
         n_uniform_albedo_v = solve_photometric_stereo_uniform_albedo(I_cal, L, mask)
+
+        # Save comparison outputs
         save_normals_rgb(n_v, str(Path(norm_dir) / f"normals_{name}.png"))
-        save_normals_rgb(n_uniform_albedo_v, str(Path(norm_dir) / f"normals_unifrom_albedo_{name}.png"))
+        save_normals_rgb(n_uniform_albedo_v, str(Path(norm_dir) / f"normals_uniform_albedo_{name}.png"))
+
         normals_by_variant[name] = n_v
         albedo_by_variant[name] = albedo_v
 
-    # --- Choose one variant (measured) to produce the rest of the outputs ---
-    n = normals_by_variant["measured"]
-    albedo = albedo_by_variant["measured"]
+    # --- Choose one variant (measured subset) to produce the rest of the outputs ---
+    n = normals_by_variant["tilted"]
+    albedo = albedo_by_variant["tilted"]
 
     # Depth (optionally smooth normals first)
     n_smooth = cv2.bilateralFilter(n.astype(np.float32), d=5, sigmaColor=0.1, sigmaSpace=3)
@@ -114,12 +193,13 @@ def main(
     # Save other outputs
     save_image(normalize_uint8(albedo), str(Path(albedo_dir) / "albedo.png"))
     save_image(normalize_uint8(np.nan_to_num(z, nan=0.0)), str(Path(depth_dir) / "depth_100.png"))
-    save_float_array(z, str(Path(depth_dir) / "depth.npy"), format="npy")
+    save_float_array(z, str(Path(depth_dir) / "depth_tilted.npy"), format="npy")
     save_float_array(z, str(Path(depth_dir) / "depth.pfm"), format="pfm")
-    save_depth_plot(z, mask, str(Path(depth_dir) / "depth_3d.png"))
+    save_depth_plot(z, mask, str(Path(depth_dir) / "depth_3d_tilted.png"))
 
-    # Shadows from the chosen variant
-    L_measured = build_light_dirs_point_measured()
+    # If you compute shadows later and need the light directions used:
+    L_measured = L_measured_subset
+
     save_shadow_maps(n, L_measured, mask, shadow_dir)
 
     # Mask & composite
