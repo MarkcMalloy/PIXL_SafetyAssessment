@@ -59,6 +59,7 @@ def main(
         shadow_dir: str = Config.OUTPUT_DIR_SHADOWS,
         use_otsu: bool = True,
         mask_quantile: float = Config.DEFAULT_MASK_QUANTILE,
+        #calibration_file: str = Config.DEFAULT_LIGHT_CALIBRATION_40mm,
         calibration_file: str = None,
         working_height: float = 40.0, #mm
         use_illumination_correction: bool = True,
@@ -95,13 +96,13 @@ def main(
     # Mask
     if use_otsu:
         print(f"Applying otsu threshold for {working_height}mm working distance...")
+
         mask, Imax = otsu_max_mask2(
             I,
             core_scale=0.5,
             morph_open_ksize=1,  # gentler opening (or 0 to disable)
             edge_dilate_ksize=7  # bigger halo for grazing edges
         )
-
         #mask, Imax = otsu_on_max(I)
     else:
         Imax = I.max(axis=-1)
@@ -115,69 +116,67 @@ def main(
     # --- Compute normals for each light model and save for comparison ---
     # --- Build measured light directions subset from PNG suffixes (D#) ---
     # d_list must already be computed from filenames in the same order as I_cal's channels.
+    # -------------------------------------------------------------------------
+    # Build light directions using measured LED geometry
+    # -------------------------------------------------------------------------
+
     K = I_cal.shape[-1]
     if len(d_list) != K:
         raise ValueError(f"d_list length ({len(d_list)}) must match #images K ({K}).")
 
-    # Map D-index (from filename suffix _D3.png .. _D6.png) -> row index in measured 6-light model (0-based)
-    # NOTE: This mapping assumes your measured model rows correspond to 6 green LEDs in a fixed order,
-    # and that D3..D6 correspond to rows 2..5 in that model.
-    # D1..D6 map directly to G1..G6 (0-based row index = D-1)
+    # D1..D6 → G1..G6 (0-based index = D-1)
     D_TO_G_INDEX = {d: d - 1 for d in range(1, 7)}
 
-    # Full 6-light measured model
-    L6_measured = build_light_dirs_point_measured()  # rows correspond to G1..G6 led_data order :contentReference[oaicite:2]{index=2}
-    L_measured_subset = np.stack([L6_measured[D_TO_G_INDEX[d]] for d in d_list], axis=0)
+    # Measured LED azimuths (MUST match led_data order in photometric_stereo.py)
+    G_ANGLES_DEG = [320, 10, 60, 110, 160, 205]
 
-    # Subset measured directions in EXACT same order as the input images
+    # --- Full measured point-light model (6 LEDs) ---
+    L6_measured = build_light_dirs_point_measured()  # (6,3)
+
+    # Subset measured lights in image order
     try:
-        L_measured_subset = np.stack([L6_measured[D_TO_G_INDEX[d]] for d in d_list], axis=0)  # shape (K,3)
+        g_idx_list = [D_TO_G_INDEX[d] for d in d_list]
     except KeyError as e:
-        raise ValueError(f"Unknown D index in filenames (no mapping in D_TO_G_INDEX): {e}")
+        raise ValueError(f"Unknown D index in filenames: {e}")
 
-    # (Optional) debug print
-    print("Using measured LED directions (in image order):")
+    L_measured_subset = np.stack([L6_measured[g] for g in g_idx_list], axis=0)
+
+    print("Using measured LED directions:")
     for f, d, v in zip(files, d_list, L_measured_subset):
         print(f"  {Path(f).name}: D{d} -> {v}")
 
-    # --- Compute normals for each light model and save for comparison ---
-    # We keep your existing variants, but enforce that L matches K images.
+    # -------------------------------------------------------------------------
+    # Variants (ALL variants now respect measured LED azimuth ordering)
+    # -------------------------------------------------------------------------
+
     variants = {
-        "basic": build_light_dirs,
-        "tilted": build_light_dirs_tilted,
-        "point": build_light_dirs_point,
-        "measured": None,  # handled explicitly below
+        "basic": lambda: build_light_dirs(angles_deg=G_ANGLES_DEG),
+        "tilted": lambda: build_light_dirs_tilted(
+            angles_deg=G_ANGLES_DEG,
+            z_tilt=1.4,
+            cam_tilt_deg=(18.0, 0.0, 0.0),
+        ),
+        "point": lambda: build_light_dirs_point(angles_deg=G_ANGLES_DEG),
+        "measured": lambda: L6_measured,
     }
 
     normals_by_variant = {}
     albedo_by_variant = {}
 
     for name, builder in variants.items():
-        if name == "measured":
-            L = L_measured_subset
-        else:
-            L_full = builder()  # many of your builders likely return (6,3)
+        L_full = builder()  # (6,3)
 
-            # Make L match the number of images K.
-            if L_full.shape[0] == K:
-                L = L_full
-            elif L_full.shape[0] == 6 and K < 6:
-                # Subset the same rows used by measured mapping so all models compare on the same LED set
-                g_idx_list = [D_TO_G_INDEX[d] for d in d_list]
-                L = np.stack([L_full[g] for g in g_idx_list], axis=0)
-            else:
-                raise ValueError(
-                    f"Variant '{name}': builder returned L with shape {L_full.shape}, "
-                    f"but need (#lights == #images) = {K}."
-                )
+        # Subset lights to match input images
+        L = np.stack([L_full[g] for g in g_idx_list], axis=0)
 
-        # Solve photometric stereo
         albedo_v, n_v = solve_photometric_stereo(I_cal, L, mask)
         n_uniform_albedo_v = solve_photometric_stereo_uniform_albedo(I_cal, L, mask)
 
-        # Save comparison outputs
         save_normals_rgb(n_v, str(Path(norm_dir) / f"normals_{name}.png"))
-        save_normals_rgb(n_uniform_albedo_v, str(Path(norm_dir) / f"normals_uniform_albedo_{name}.png"))
+        save_normals_rgb(
+            n_uniform_albedo_v,
+            str(Path(norm_dir) / f"normals_uniform_albedo_{name}.png")
+        )
 
         normals_by_variant[name] = n_v
         albedo_by_variant[name] = albedo_v

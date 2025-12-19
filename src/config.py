@@ -7,16 +7,18 @@ class Config:
     PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
     # --- Input / Output paths ---
-    #OBJECTTYPE = "noObstacle"
-    OBJECTTYPE = "obstacle"
+    OBJECTTYPE = "noObstacle"
+    #OBJECTTYPE = "obstacle"
     #OBJECTTYPE = "Calibration"
 
     #DEFAULT_INPUT_GLOB = str(PROJECT_ROOT / "PIXL_Images" / "TestData" / "*.png")
     DEFAULT_INPUT_GLOB_40mm = str(PROJECT_ROOT / "PIXL_Images" / "CalData" / "PIXL_040mm_dist" / OBJECTTYPE / "images" / "*.png")
     DEFAULT_SLI_CSV_GLOB_40mm = str(PROJECT_ROOT / "PIXL_Images" / "CalData" / "PIXL_040mm_dist" / OBJECTTYPE / "*.csv")
+    DEFAULT_LIGHT_CALIBRATION_40mm = str(PROJECT_ROOT / "calibration" / "output" / "illumination_calibration.npy")
 
     DEFAULT_INPUT_GLOB_100mm = str(PROJECT_ROOT / "PIXL_Images" / "CalData" / "PIXL_100mm_dist" / OBJECTTYPE / "images" / "*.png")
     DEFAULT_SLI_CSV_GLOB_100mm = str(PROJECT_ROOT / "PIXL_Images" / "CalData" / "PIXL_100mm_dist" / OBJECTTYPE / "*.csv")
+
 
 
 

@@ -49,9 +49,19 @@ def build_light_dirs_point(
     return v_cam
 
 
+# This one works
+def build_light_dirs(angles_deg: list = Config.LIGHT_ANGLES, z_tilt: float = Config.Z_TILT) -> np.ndarray:
+    """Build light directions for a ring around the camera."""
+    angles = np.deg2rad(angles_deg)
+    xy = np.stack([np.cos(angles), np.sin(angles)], axis=1)
+    z = np.ones((len(angles), 1)) * z_tilt
+    L = np.concatenate([xy, z], axis=1).astype(np.float32)
+    L /= np.linalg.norm(L, axis=1, keepdims=True) + 1e-12
+    return L
+
 def build_light_dirs_tilted(
         angles_deg=[0, 60, 120, 180, 240, 300],
-        z_tilt=1.5,
+        z_tilt=1.4,
         cam_tilt_deg=(18.0, 0.0, 0.0)
 ) -> np.ndarray:
     # lights in rig frame
@@ -68,19 +78,8 @@ def build_light_dirs_tilted(
     return L_cam
 
 
-# This one works
-def build_light_dirs(angles_deg: list = Config.LIGHT_ANGLES, z_tilt: float = Config.Z_TILT) -> np.ndarray:
-    """Build light directions for a ring around the camera."""
-    angles = np.deg2rad(angles_deg)
-    xy = np.stack([np.cos(angles), np.sin(angles)], axis=1)
-    z = np.ones((len(angles), 1)) * z_tilt
-    L = np.concatenate([xy, z], axis=1).astype(np.float32)
-    L /= np.linalg.norm(L, axis=1, keepdims=True) + 1e-12
-    return L
-
-
 def build_light_dirs_point_measured(
-        cam_tilt_deg=(18, 0, 0),
+        cam_tilt_deg=(2, 0, 0),
         cam_offset_rig=(0, 0, 0),
         z_ref=0.025
 ) -> np.ndarray:
@@ -99,9 +98,9 @@ def build_light_dirs_point_measured(
     LED_data_height_m = 0.008975 + 0.005  # Measured height of LEDs in meters
 
     led_data = [
-        (320, 0.033675, LED_data_height_m, 23.03),  # G1
-        (10, 0.033675, LED_data_height_m, 23.03),  # G2
-        (60, 0.033675, LED_data_height_m, 23.03),  # G3
+        (320, 0.033675, LED_data_height_m, 23.03),  # D1 -> G1
+        (10, 0.033675, LED_data_height_m, 23.03),  # D2 -> G2
+        (60, 0.033675, LED_data_height_m, 23.03),  # D3 -> G3
         (110, 0.033675, LED_data_height_m, 23.03),  # G4
         (160, 0.033675, LED_data_height_m, 23.03),  # G5
         (205, 0.033675, LED_data_height_m, 23.03),  # G6

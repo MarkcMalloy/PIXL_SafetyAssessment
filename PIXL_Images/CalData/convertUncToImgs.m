@@ -1,7 +1,7 @@
 % Process all unc files in pwd and generate pngs with LED/channel labels
 files = dir('*.unc'); % Get all .unc files in the current directory
 
-prefix = "Obstacle_040mm_"; % Change between Calibration, NoObstacle and Obstacle for each dataset OBJECTTYPE
+prefix = "Calibration_040mm_"; % Change between Calibration, NoObstacle and Obstacle for each dataset OBJECTTYPE
 
 for k = 1:numel(files)
     fileName = files(k).name;
