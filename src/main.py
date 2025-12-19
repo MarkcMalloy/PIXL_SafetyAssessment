@@ -181,7 +181,7 @@ def main(
         normals_by_variant[name] = n_v
         albedo_by_variant[name] = albedo_v
 
-    # --- Choose one variant (measured subset) to produce the rest of the outputs ---
+    # --- Choose one variant (tilted or measured subset) to produce the rest of the outputs ---
     n = normals_by_variant["tilted"]
     albedo = albedo_by_variant["tilted"]
 
@@ -196,7 +196,6 @@ def main(
     save_float_array(z, str(Path(depth_dir) / "depth.pfm"), format="pfm")
     save_depth_plot(z, mask, str(Path(depth_dir) / "depth_3d_tilted.png"))
 
-    # If you compute shadows later and need the light directions used:
     L_measured = L_measured_subset
 
     save_shadow_maps(n, L_measured, mask, shadow_dir)
